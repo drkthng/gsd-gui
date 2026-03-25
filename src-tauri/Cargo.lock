@@ -1183,7 +1183,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gsd-ui"
+name = "gsd-gui"
 version = "0.0.0"
 dependencies = [
  "notify",
