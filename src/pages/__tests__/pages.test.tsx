@@ -8,16 +8,28 @@ import { CostsPage } from "@/pages/costs-page";
 import { SettingsPage } from "@/pages/settings-page";
 import { HelpPage } from "@/pages/help-page";
 
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  open: vi.fn(),
+}));
+
 vi.mock("@/services/gsd-client", () => ({
   createGsdClient: () => ({
     startSession: vi.fn(), stopSession: vi.fn(), sendCommand: vi.fn(),
     queryState: vi.fn(), listProjects: vi.fn(), startFileWatcher: vi.fn(),
-    stopFileWatcher: vi.fn(), onGsdEvent: vi.fn().mockResolvedValue(vi.fn()),
+    stopFileWatcher: vi.fn(),
+    getSavedProjects: vi.fn().mockResolvedValue([]),
+    addProject: vi.fn(), removeProject: vi.fn(),
+    onGsdEvent: vi.fn().mockResolvedValue(vi.fn()),
     onProcessExit: vi.fn().mockResolvedValue(vi.fn()),
     onProcessError: vi.fn().mockResolvedValue(vi.fn()),
     onFileChanged: vi.fn().mockResolvedValue(vi.fn()),
   }),
 }));
+
+// The pages test checks for synchronous content. The ProjectGallery now auto-loads
+// on mount via useEffect, which briefly shows loading state. Pre-render the "no projects"
+// state by importing the store after mocks are in place.
+import { useProjectStore } from "@/stores/project-store";
 
 interface PageDef {
   name: string;
@@ -91,9 +103,9 @@ describe("Page components", () => {
   }
 
   for (const { name, Component, uniqueText } of pages) {
-    it(`${name}Page renders page-specific content ("${uniqueText}")`, () => {
+    it(`${name}Page renders page-specific content ("${uniqueText}")`, async () => {
       renderWithProviders(<Component />);
-      expect(screen.getByText(new RegExp(uniqueText, "i"))).toBeInTheDocument();
+      expect(await screen.findByText(new RegExp(uniqueText, "i"))).toBeInTheDocument();
     });
   }
 

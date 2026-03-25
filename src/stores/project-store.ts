@@ -1,21 +1,23 @@
 import { create } from "zustand";
 import { createGsdClient } from "@/services/gsd-client";
-import type { ProjectInfo } from "@/lib/types";
+import type { SavedProject } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 interface ProjectState {
-  projects: ProjectInfo[];
-  activeProject: ProjectInfo | null;
+  projects: SavedProject[];
+  activeProject: SavedProject | null;
   isLoading: boolean;
   error: string | null;
 
   // Actions
-  loadProjects: (scanPath: string) => Promise<void>;
-  selectProject: (project: ProjectInfo) => void;
-  clearProjects: () => void;
+  loadProjects: () => Promise<void>;
+  addProject: (projectPath: string, description?: string) => Promise<SavedProject>;
+  removeProject: (projectId: string) => Promise<void>;
+  selectProject: (project: SavedProject) => void;
+  clearError: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -24,16 +26,16 @@ interface ProjectState {
 
 const client = createGsdClient();
 
-export const useProjectStore = create<ProjectState>()((set) => ({
+export const useProjectStore = create<ProjectState>()((set, get) => ({
   projects: [],
   activeProject: null,
   isLoading: false,
   error: null,
 
-  loadProjects: async (scanPath: string) => {
+  loadProjects: async () => {
     set({ isLoading: true, error: null });
     try {
-      const projects = await client.listProjects(scanPath);
+      const projects = await client.getSavedProjects();
       set({ projects, isLoading: false });
     } catch (err) {
       set({
@@ -43,11 +45,42 @@ export const useProjectStore = create<ProjectState>()((set) => ({
     }
   },
 
-  selectProject: (project: ProjectInfo) => {
+  addProject: async (projectPath: string, description?: string) => {
+    set({ error: null });
+    try {
+      const saved = await client.addProject(projectPath, description);
+      // Reload the full list to stay in sync
+      const projects = await client.getSavedProjects();
+      set({ projects });
+      return saved;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      set({ error: message });
+      throw new Error(message);
+    }
+  },
+
+  removeProject: async (projectId: string) => {
+    set({ error: null });
+    try {
+      await client.removeProject(projectId);
+      const { activeProject } = get();
+      const projects = await client.getSavedProjects();
+      set({
+        projects,
+        activeProject:
+          activeProject?.id === projectId ? null : activeProject,
+      });
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  },
+
+  selectProject: (project: SavedProject) => {
     set({ activeProject: project });
   },
 
-  clearProjects: () => {
-    set({ projects: [], activeProject: null });
-  },
+  clearError: () => set({ error: null }),
 }));

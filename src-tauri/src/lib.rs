@@ -3,6 +3,7 @@ mod gsd_query;
 mod gsd_resolve;
 mod gsd_rpc;
 mod gsd_watcher;
+mod project_registry;
 
 use std::sync::Arc;
 use tauri::Emitter;
@@ -159,9 +160,43 @@ async fn stop_file_watcher(
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// Project registry commands
+// ---------------------------------------------------------------------------
+
+/// Get all saved projects from the persistent registry.
+#[tauri::command]
+async fn get_saved_projects(
+    app: tauri::AppHandle,
+) -> Result<Vec<project_registry::SavedProject>, String> {
+    let registry = project_registry::load(&app)?;
+    Ok(registry.projects)
+}
+
+/// Add a project to the registry by its filesystem path.
+/// Validates it contains a `.gsd/` directory.
+#[tauri::command]
+async fn add_project(
+    project_path: String,
+    description: Option<String>,
+    app: tauri::AppHandle,
+) -> Result<project_registry::SavedProject, String> {
+    project_registry::add_project(&app, &project_path, description)
+}
+
+/// Remove a project from the registry by its ID.
+#[tauri::command]
+async fn remove_project(
+    project_id: String,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    project_registry::remove_project(&app, &project_id)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(GsdState::new())
         .invoke_handler(tauri::generate_handler![
             start_gsd_session,
@@ -170,7 +205,10 @@ pub fn run() {
             query_gsd_state,
             list_projects,
             start_file_watcher,
-            stop_file_watcher
+            stop_file_watcher,
+            get_saved_projects,
+            add_project,
+            remove_project
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
