@@ -18,7 +18,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <ThemeProvider defaultTheme="system" storageKey="gsd-ui-theme">
+        <ThemeProvider defaultTheme="system" storageKey="gsd-gui-theme">
           <Routes>
             <Route element={<AppShell />}>
               {appRoutes.map((route: RouteEntry, i: number) =>

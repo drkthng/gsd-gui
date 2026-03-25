@@ -17,8 +17,8 @@ vi.mock("@/services/gsd-client", () => ({
 
 const activeProject: ProjectDisplayInfo = {
   id: "p1",
-  name: "gsd-ui",
-  path: "/projects/gsd-ui",
+  name: "gsd-gui",
+  path: "/projects/gsd-gui",
   status: "active",
   currentMilestone: "M003",
   totalCost: 4.52,
@@ -40,7 +40,7 @@ const idleProject: ProjectDisplayInfo = {
 describe("ProjectCard", () => {
   it("renders project name", () => {
     renderWithProviders(<ProjectCard project={activeProject} onClick={vi.fn()} />);
-    expect(screen.getByText("gsd-ui")).toBeInTheDocument();
+    expect(screen.getByText("gsd-gui")).toBeInTheDocument();
   });
 
   it("shows active status indicator", () => {
@@ -71,12 +71,12 @@ describe("ProjectCard", () => {
   it("calls onClick when clicked", async () => {
     const onClick = vi.fn();
     renderWithProviders(<ProjectCard project={activeProject} onClick={onClick} />);
-    await userEvent.click(screen.getByText("gsd-ui"));
+    await userEvent.click(screen.getByText("gsd-gui"));
     expect(onClick).toHaveBeenCalledWith(activeProject);
   });
 
   it("shows path as tooltip or subtitle", () => {
     renderWithProviders(<ProjectCard project={activeProject} onClick={vi.fn()} />);
-    expect(screen.getByText("/projects/gsd-ui")).toBeInTheDocument();
+    expect(screen.getByText("/projects/gsd-gui")).toBeInTheDocument();
   });
 });

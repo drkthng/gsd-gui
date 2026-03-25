@@ -1,7 +1,7 @@
 import { test as base, expect } from "@playwright/test";
 
 /**
- * Shared E2E test fixtures for GSD UI.
+ * Shared E2E test fixtures for GSD GUI.
  * Extend this file with custom fixtures as needed.
  */
 export const test = base.extend<{

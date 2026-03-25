@@ -51,7 +51,7 @@ export function renderWithProviders(
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider defaultTheme="system" storageKey="gsd-ui-theme-test">
+        <ThemeProvider defaultTheme="system" storageKey="gsd-gui-theme-test">
           <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
         </ThemeProvider>
       </QueryClientProvider>
