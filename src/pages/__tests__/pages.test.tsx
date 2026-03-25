@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen } from "@/test/test-utils";
 import { ChatPage } from "@/pages/chat-page";
 import { ProjectsPage } from "@/pages/projects-page";
@@ -8,50 +8,75 @@ import { CostsPage } from "@/pages/costs-page";
 import { SettingsPage } from "@/pages/settings-page";
 import { HelpPage } from "@/pages/help-page";
 
-const pages = [
+vi.mock("@/services/gsd-client", () => ({
+  createGsdClient: () => ({
+    startSession: vi.fn(), stopSession: vi.fn(), sendCommand: vi.fn(),
+    queryState: vi.fn(), listProjects: vi.fn(), startFileWatcher: vi.fn(),
+    stopFileWatcher: vi.fn(), onGsdEvent: vi.fn().mockResolvedValue(vi.fn()),
+    onProcessExit: vi.fn().mockResolvedValue(vi.fn()),
+    onProcessError: vi.fn().mockResolvedValue(vi.fn()),
+    onFileChanged: vi.fn().mockResolvedValue(vi.fn()),
+  }),
+}));
+
+interface PageDef {
+  name: string;
+  Component: React.ComponentType;
+  uniqueText: string;
+  hasMockSections?: boolean;
+  sections?: string[];
+}
+
+const pages: PageDef[] = [
   {
     name: "Chat",
     Component: ChatPage,
     uniqueText: "Recent Conversations",
+    hasMockSections: true,
     sections: ["Recent Conversations", "Quick Actions"],
   },
   {
     name: "Projects",
     Component: ProjectsPage,
-    uniqueText: "Active Projects",
-    sections: ["Active Projects"],
+    uniqueText: "No projects",
+    hasMockSections: false,
   },
   {
     name: "Milestones",
     Component: MilestonesPage,
     uniqueText: "Current Milestone",
+    hasMockSections: true,
     sections: ["Current Milestone", "Upcoming Milestones"],
   },
   {
     name: "Timeline",
     Component: TimelinePage,
     uniqueText: "Sprint Timeline",
+    hasMockSections: true,
     sections: ["Sprint Timeline", "Recent Activity"],
   },
   {
     name: "Costs",
     Component: CostsPage,
     uniqueText: "Total Spend",
+    hasMockSections: true,
     sections: ["Total Spend", "Cost Breakdown"],
   },
   {
     name: "Settings",
     Component: SettingsPage,
     uniqueText: "Appearance",
+    hasMockSections: true,
     sections: ["Appearance", "API Keys"],
   },
   {
     name: "Help",
     Component: HelpPage,
     uniqueText: "Getting Started",
+    hasMockSections: true,
     sections: ["Getting Started", "Keyboard Shortcuts"],
   },
-] as const;
+];
 
 describe("Page components", () => {
   for (const { name, Component } of pages) {
@@ -77,13 +102,13 @@ describe("Page components", () => {
     });
   }
 
-  for (const { name, Component, sections } of pages) {
-    it(`${name}Page renders at least 2 mock data sections`, () => {
+  const pagesWithMockSections = pages.filter((p) => p.hasMockSections && p.sections);
+  for (const { name, Component, sections } of pagesWithMockSections) {
+    it(`${name}Page renders mock data sections`, () => {
       renderWithProviders(<Component />);
       const mockSections = screen.getAllByTestId("mock-section");
       expect(mockSections.length).toBeGreaterThanOrEqual(2);
-      // Verify section headings match expected content
-      for (const sectionTitle of sections) {
+      for (const sectionTitle of sections!) {
         const matches = screen.getAllByText(new RegExp(sectionTitle, "i"));
         expect(matches.length).toBeGreaterThanOrEqual(1);
       }

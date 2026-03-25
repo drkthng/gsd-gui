@@ -62,6 +62,15 @@ export interface ProjectInfo {
   path: string;
 }
 
+/** Extended project info for gallery display. Built client-side from ProjectInfo + QuerySnapshot. */
+export interface ProjectDisplayInfo extends ProjectInfo {
+  status: "active" | "paused" | "idle";
+  currentMilestone: string | null;
+  totalCost: number;
+  progress: number; // 0-100
+  lastActivity: string | null; // ISO timestamp or null
+}
+
 // ---------------------------------------------------------------------------
 // Process event payloads
 // Mirrors: src-tauri/src/gsd_process.rs
