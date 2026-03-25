@@ -66,7 +66,7 @@ describe("StatusBar", () => {
 
   it("shows project name when active", () => {
     useProjectStore.setState({
-      activeProject: { id: "p1", name: "My Project", path: "/p1" },
+      activeProject: { id: "p1", name: "My Project", path: "/p1", description: null, addedAt: "0" },
     });
     renderWithProviders(<StatusBar />);
     expect(screen.getByText("My Project")).toBeInTheDocument();

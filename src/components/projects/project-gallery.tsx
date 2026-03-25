@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FolderKanban, FolderOpen, Search, Trash2 } from "lucide-react";
+import { FolderKanban, FolderOpen, Search } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
