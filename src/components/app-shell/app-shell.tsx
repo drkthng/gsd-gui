@@ -15,6 +15,8 @@ import { SidebarNav } from "./sidebar-nav";
 import { StatusBar } from "@/components/status-bar/status-bar";
 import { ModeToggle } from "@/components/mode-toggle";
 import { useGsdEvents } from "@/hooks/use-gsd-events";
+import { useToastNotifications } from "@/hooks/use-toast-notifications";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { UIRequestDialog } from "@/components/controls";
 
 /**
@@ -31,6 +33,12 @@ import { UIRequestDialog } from "@/components/controls";
 export function AppShell() {
   // Subscribe to all GSD events and route them to stores
   useGsdEvents();
+
+  // Fire toast notifications on GSD state changes
+  useToastNotifications();
+
+  // Register global keyboard shortcuts (Ctrl+N, Ctrl+1-7, Escape)
+  useKeyboardShortcuts();
 
   return (
     <SidebarProvider defaultOpen={true}>

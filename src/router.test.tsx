@@ -40,7 +40,11 @@ describe("Router config", () => {
     { path: "/timeline", heading: /timeline/i },
     { path: "/costs", heading: /costs/i },
     { path: "/settings", heading: /settings/i },
-    { path: "/help", heading: /help/i },
+    { path: "/pro-tools", heading: /pro tools/i },
+    { path: "/pro-tools/log-viewer", heading: /log viewer/i },
+    { path: "/pro-tools/debugger", heading: /debugger/i },
+    { path: "/pro-tools/metrics", heading: /metrics/i },
+    { path: "/pro-tools/trace-viewer", heading: /trace viewer/i },
   ] as const;
 
   for (const { path, heading } of routeTests) {
@@ -59,7 +63,7 @@ describe("Router config", () => {
     ).toBeInTheDocument();
   });
 
-  it("exports exactly 8 route entries (7 pages + 1 index redirect)", () => {
-    expect(appRoutes).toHaveLength(8);
+  it("exports exactly 12 route entries (11 pages + 1 index redirect)", () => {
+    expect(appRoutes).toHaveLength(24);
   });
 });

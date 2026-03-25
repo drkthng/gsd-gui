@@ -8,7 +8,7 @@ type View =
   | "timeline"
   | "costs"
   | "settings"
-  | "help";
+  | "pro-tools";
 
 interface UIState {
   theme: Theme;

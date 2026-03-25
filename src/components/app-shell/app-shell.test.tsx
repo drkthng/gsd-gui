@@ -57,7 +57,7 @@ describe("AppShell", () => {
     "Timeline",
     "Costs",
     "Settings",
-    "Help",
+    "Pro Tools",
   ];
 
   it("renders 7 navigation items with correct labels", () => {
@@ -106,7 +106,7 @@ describe("AppShell", () => {
       Timeline: /timeline/i,
       Costs: /costs/i,
       Settings: /settings/i,
-      Help: /help/i,
+      "Pro Tools": /pro tools/i,
     };
     renderAppShell("/chat");
     for (const [label, headingPattern] of Object.entries(routeMap)) {

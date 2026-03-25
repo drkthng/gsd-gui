@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppShell } from "@/components/app-shell";
 import { appRoutes, type RouteEntry } from "@/router";
@@ -34,6 +35,7 @@ function App() {
             </Route>
           </Routes>
         </ThemeProvider>
+        <Toaster richColors closeButton position="bottom-right" />
       </BrowserRouter>
     </QueryClientProvider>
   );
