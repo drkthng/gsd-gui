@@ -1,5 +1,6 @@
 import { render, type RenderOptions } from "@testing-library/react";
 import { MemoryRouter, type MemoryRouterProps } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, vi } from "vitest";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -34,7 +35,7 @@ interface RenderWithProvidersOptions extends Omit<RenderOptions, "wrapper"> {
 }
 
 /**
- * Renders a component wrapped in ThemeProvider + MemoryRouter.
+ * Renders a component wrapped in QueryClientProvider + ThemeProvider + MemoryRouter.
  * - `initialRoute`: shorthand for a single initial entry (default: "/")
  * - `routes`: full initialEntries array for MemoryRouter (overrides initialRoute)
  */
@@ -43,12 +44,17 @@ export function renderWithProviders(
   { initialRoute = "/", routes, ...options }: RenderWithProvidersOptions = {},
 ) {
   const initialEntries = routes ?? [initialRoute];
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
-      <ThemeProvider defaultTheme="system" storageKey="gsd-ui-theme-test">
-        <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider defaultTheme="system" storageKey="gsd-ui-theme-test">
+          <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
+        </ThemeProvider>
+      </QueryClientProvider>
     );
   }
 

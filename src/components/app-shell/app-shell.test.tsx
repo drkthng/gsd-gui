@@ -2,6 +2,25 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderWithProviders, screen, within } from "@/test/test-utils";
 import userEvent from "@testing-library/user-event";
 import { Routes, Route } from "react-router-dom";
+
+// Mock gsd-client before AppShell import (it uses useGsdEvents which imports gsd-client)
+vi.hoisted(() => {});
+vi.mock("@/services/gsd-client", () => ({
+  createGsdClient: () => ({
+    startSession: vi.fn(),
+    stopSession: vi.fn(),
+    sendCommand: vi.fn(),
+    queryState: vi.fn().mockResolvedValue({ currentMilestone: null, activeTasks: 0, totalCost: 0 }),
+    listProjects: vi.fn(),
+    startFileWatcher: vi.fn(),
+    stopFileWatcher: vi.fn(),
+    onGsdEvent: vi.fn().mockResolvedValue(vi.fn()),
+    onProcessExit: vi.fn().mockResolvedValue(vi.fn()),
+    onProcessError: vi.fn().mockResolvedValue(vi.fn()),
+    onFileChanged: vi.fn().mockResolvedValue(vi.fn()),
+  }),
+}));
+
 import { AppShell } from "./app-shell";
 import { appRoutes, type RouteEntry } from "@/router";
 import { Navigate } from "react-router-dom";

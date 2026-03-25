@@ -1,5 +1,22 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/services/gsd-client", () => ({
+  createGsdClient: () => ({
+    startSession: vi.fn(),
+    stopSession: vi.fn(),
+    sendCommand: vi.fn(),
+    queryState: vi.fn().mockResolvedValue({ currentMilestone: null, activeTasks: 0, totalCost: 0 }),
+    listProjects: vi.fn(),
+    startFileWatcher: vi.fn(),
+    stopFileWatcher: vi.fn(),
+    onGsdEvent: vi.fn().mockResolvedValue(vi.fn()),
+    onProcessExit: vi.fn().mockResolvedValue(vi.fn()),
+    onProcessError: vi.fn().mockResolvedValue(vi.fn()),
+    onFileChanged: vi.fn().mockResolvedValue(vi.fn()),
+  }),
+}));
+
 import App from "@/App";
 
 describe("App", () => {

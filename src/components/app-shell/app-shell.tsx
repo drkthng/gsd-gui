@@ -14,6 +14,7 @@ import {
 import { SidebarNav } from "./sidebar-nav";
 import { StatusBar } from "@/components/status-bar/status-bar";
 import { ModeToggle } from "@/components/mode-toggle";
+import { useGsdEvents } from "@/hooks/use-gsd-events";
 
 /**
  * Root app shell layout composing sidebar navigation, main content, and status bar.
@@ -27,6 +28,9 @@ import { ModeToggle } from "@/components/mode-toggle";
  * (< 768px) via the useIsMobile hook.
  */
 export function AppShell() {
+  // Subscribe to all GSD events and route them to stores
+  useGsdEvents();
+
   return (
     <SidebarProvider defaultOpen={true}>
       <Sidebar collapsible="icon">
