@@ -1,53 +1,103 @@
 // GSD Client — IPC abstraction layer
-// This is the ONLY file in the frontend that may import @tauri-apps/api.
-// Currently uses no-op implementations. Real Tauri IPC will be wired in M002.
+// This is the ONLY file in the frontend that may import @tauri-apps/api (D005).
 
-export interface GsdSession {
-  id: string;
-  startedAt: string;
-}
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
-export interface CommandResult {
-  success: boolean;
-  data: unknown;
-}
+import type {
+  RpcCommand,
+  QuerySnapshot,
+  ProjectInfo,
+  GsdEventPayload,
+  GsdExitPayload,
+  GsdErrorPayload,
+  GsdFileChangedPayload,
+} from "@/lib/types";
 
-export interface ProjectInfo {
-  id: string;
-  name: string;
-  path: string;
-}
+// Re-export types so downstream consumers import from gsd-client (D005 boundary)
+export type {
+  RpcCommand,
+  QuerySnapshot,
+  ProjectInfo,
+  GsdEventPayload,
+  GsdExitPayload,
+  GsdErrorPayload,
+  GsdFileChangedPayload,
+} from "@/lib/types";
 
-export interface GsdState {
-  currentMilestone: string | null;
-  activeTasks: number;
-  totalCost: number;
-}
+// ---------------------------------------------------------------------------
+// GsdClient interface
+// ---------------------------------------------------------------------------
 
 export interface GsdClient {
-  startSession: () => Promise<GsdSession>;
+  // Commands (invoke-based)
+  startSession: (projectPath: string) => Promise<void>;
   stopSession: () => Promise<void>;
-  sendCommand: (
-    command: string,
-    args?: Record<string, unknown>,
-  ) => Promise<CommandResult>;
-  queryState: () => Promise<GsdState>;
-  listProjects: () => Promise<ProjectInfo[]>;
+  sendCommand: (command: RpcCommand) => Promise<void>;
+  queryState: (projectPath: string) => Promise<QuerySnapshot>;
+  listProjects: (scanPath: string) => Promise<ProjectInfo[]>;
+  startFileWatcher: (projectPath: string) => Promise<void>;
+  stopFileWatcher: () => Promise<void>;
+  // Event listeners (listen-based) — return unlisten functions
+  onGsdEvent: (
+    handler: (payload: GsdEventPayload) => void,
+  ) => Promise<() => void>;
+  onProcessExit: (
+    handler: (payload: GsdExitPayload) => void,
+  ) => Promise<() => void>;
+  onProcessError: (
+    handler: (payload: GsdErrorPayload) => void,
+  ) => Promise<() => void>;
+  onFileChanged: (
+    handler: (payload: GsdFileChangedPayload) => void,
+  ) => Promise<() => void>;
 }
+
+// ---------------------------------------------------------------------------
+// Factory
+// ---------------------------------------------------------------------------
 
 export function createGsdClient(): GsdClient {
   return {
-    startSession: async () => ({
-      id: "no-op",
-      startedAt: new Date().toISOString(),
-    }),
-    stopSession: async () => {},
-    sendCommand: async () => ({ success: true, data: null }),
-    queryState: async () => ({
-      currentMilestone: null,
-      activeTasks: 0,
-      totalCost: 0,
-    }),
-    listProjects: async () => [],
+    // ---- invoke-based commands ----
+    startSession: (projectPath: string) =>
+      invoke("start_gsd_session", { projectPath }),
+
+    stopSession: () => invoke("stop_gsd_session"),
+
+    sendCommand: (command: RpcCommand) =>
+      invoke("send_gsd_command", { command: JSON.stringify(command) }),
+
+    queryState: (projectPath: string) =>
+      invoke<QuerySnapshot>("query_gsd_state", { projectPath }),
+
+    listProjects: (scanPath: string) =>
+      invoke<ProjectInfo[]>("list_projects", { scanPath }),
+
+    startFileWatcher: (projectPath: string) =>
+      invoke("start_file_watcher", { projectPath }),
+
+    stopFileWatcher: () => invoke("stop_file_watcher"),
+
+    // ---- listen-based event subscriptions ----
+    onGsdEvent: (handler) =>
+      listen<GsdEventPayload>("gsd-event", (event) =>
+        handler(event.payload),
+      ).then((unlisten) => unlisten),
+
+    onProcessExit: (handler) =>
+      listen<GsdExitPayload>("gsd-process-exit", (event) =>
+        handler(event.payload),
+      ).then((unlisten) => unlisten),
+
+    onProcessError: (handler) =>
+      listen<GsdErrorPayload>("gsd-process-error", (event) =>
+        handler(event.payload),
+      ).then((unlisten) => unlisten),
+
+    onFileChanged: (handler) =>
+      listen<GsdFileChangedPayload>("gsd-file-changed", (event) =>
+        handler(event.payload),
+      ).then((unlisten) => unlisten),
   };
 }

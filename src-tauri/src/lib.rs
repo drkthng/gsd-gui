@@ -1,6 +1,177 @@
+mod gsd_process;
+mod gsd_query;
+mod gsd_resolve;
+mod gsd_rpc;
+mod gsd_watcher;
+
+use std::sync::Arc;
+use tauri::Emitter;
+use tokio::sync::Mutex;
+
+use gsd_process::GsdProcess;
+use gsd_resolve::resolve_gsd_binary;
+use gsd_rpc::RpcCommand;
+use gsd_watcher::GsdFileWatcher;
+
+/// Tauri managed state holding the active GSD process and file watcher.
+pub struct GsdState {
+    process: Arc<Mutex<Option<GsdProcess>>>,
+    watcher: Arc<Mutex<Option<GsdFileWatcher>>>,
+}
+
+impl GsdState {
+    fn new() -> Self {
+        GsdState {
+            process: Arc::new(Mutex::new(None)),
+            watcher: Arc::new(Mutex::new(None)),
+        }
+    }
+}
+
+/// Start a new GSD RPC session. Resolves the gsd binary, stops any existing
+/// process, and spawns a fresh `gsd --mode rpc --project <path>`.
+#[tauri::command]
+async fn start_gsd_session(
+    project_path: String,
+    state: tauri::State<'_, GsdState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let binary = resolve_gsd_binary()?;
+
+    let mut guard = state.process.lock().await;
+
+    // Stop any existing process first
+    if let Some(mut existing) = guard.take() {
+        let _ = existing.stop().await;
+    }
+
+    let process = GsdProcess::spawn(&binary, &project_path, app.clone()).await?;
+    *guard = Some(process);
+
+    // Spawn a background task to monitor for process exit and emit event
+    let process_ref = state.process.clone();
+    let app_exit = app.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            let mut guard = process_ref.lock().await;
+            if let Some(proc) = guard.as_mut() {
+                if !proc.is_running() {
+                    let _ = app_exit.emit(
+                        "gsd-process-exit",
+                        gsd_process::GsdExitPayload {
+                            code: None, // process already reaped by is_running()
+                            timestamp: gsd_process::unix_timestamp_ms(),
+                        },
+                    );
+                    guard.take(); // clean up
+                    break;
+                }
+            } else {
+                break; // no process to monitor
+            }
+        }
+    });
+
+    Ok(())
+}
+
+/// Stop the active GSD RPC session.
+#[tauri::command]
+async fn stop_gsd_session(
+    state: tauri::State<'_, GsdState>,
+) -> Result<(), String> {
+    let mut guard = state.process.lock().await;
+    if let Some(mut process) = guard.take() {
+        process.stop().await
+    } else {
+        Ok(()) // No process running — not an error
+    }
+}
+
+/// Send an RPC command to the running GSD process.
+///
+/// `command` is a JSON string that deserializes into an `RpcCommand`.
+#[tauri::command]
+async fn send_gsd_command(
+    command: String,
+    state: tauri::State<'_, GsdState>,
+) -> Result<(), String> {
+    let cmd: RpcCommand = serde_json::from_str(&command)
+        .map_err(|e| format!("Invalid RPC command JSON: {}", e))?;
+
+    let guard = state.process.lock().await;
+    if let Some(process) = guard.as_ref() {
+        process.send_command(&cmd).await
+    } else {
+        Err("No GSD process is running. Call start_gsd_session first.".to_string())
+    }
+}
+
+/// Query GSD project state via headless query command.
+/// Returns a `QuerySnapshot` matching the frontend `GsdState` interface.
+#[tauri::command]
+async fn query_gsd_state(
+    project_path: String,
+) -> Result<gsd_query::QuerySnapshot, String> {
+    gsd_query::run_headless_query(&project_path).await
+}
+
+/// List GSD projects in a directory by scanning for `.gsd/` subdirectories.
+/// Returns a `Vec<ProjectInfo>` matching the frontend `ProjectInfo` interface.
+#[tauri::command]
+async fn list_projects(
+    scan_path: String,
+) -> Result<Vec<gsd_query::ProjectInfo>, String> {
+    gsd_query::list_projects_in_dir(&scan_path)
+}
+
+/// Start watching a project's `.gsd/` directory for file changes.
+/// Emits `gsd-file-changed` events when STATE.md, metrics.json, or
+/// *-ROADMAP.md files change. Debounces rapid changes (500ms window).
+#[tauri::command]
+async fn start_file_watcher(
+    project_path: String,
+    state: tauri::State<'_, GsdState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let mut guard = state.watcher.lock().await;
+
+    // Stop any existing watcher first
+    if let Some(existing) = guard.take() {
+        existing.stop();
+    }
+
+    let watcher = GsdFileWatcher::start_tauri(&project_path, app)?;
+    *guard = Some(watcher);
+    Ok(())
+}
+
+/// Stop the active file watcher.
+#[tauri::command]
+async fn stop_file_watcher(
+    state: tauri::State<'_, GsdState>,
+) -> Result<(), String> {
+    let mut guard = state.watcher.lock().await;
+    if let Some(watcher) = guard.take() {
+        watcher.stop();
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(GsdState::new())
+        .invoke_handler(tauri::generate_handler![
+            start_gsd_session,
+            stop_gsd_session,
+            send_gsd_command,
+            query_gsd_state,
+            list_projects,
+            start_file_watcher,
+            stop_file_watcher
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

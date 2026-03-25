@@ -1,8 +1,20 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { setupTauriMocks } from "@/test/tauri-mock";
 import { createGsdClient } from "@/services/gsd-client";
 import type { GsdClient } from "@/services/gsd-client";
+import type { RpcCommand, QuerySnapshot, ProjectInfo } from "@/lib/types";
+
+// vi.mock calls are hoisted — setupTauriMocks uses vi.hoisted() internally
+const { mockInvoke, mockListen } = setupTauriMocks();
 
 describe("gsd-client", () => {
+  beforeEach(() => {
+    mockInvoke.mockReset().mockResolvedValue(undefined);
+    mockListen.mockReset().mockResolvedValue(vi.fn());
+  });
+
+  // ---- factory ----
+
   it("createGsdClient() returns an object with all expected methods", () => {
     const client: GsdClient = createGsdClient();
     expect(typeof client.startSession).toBe("function");
@@ -10,51 +22,147 @@ describe("gsd-client", () => {
     expect(typeof client.sendCommand).toBe("function");
     expect(typeof client.queryState).toBe("function");
     expect(typeof client.listProjects).toBe("function");
+    expect(typeof client.startFileWatcher).toBe("function");
+    expect(typeof client.stopFileWatcher).toBe("function");
+    expect(typeof client.onGsdEvent).toBe("function");
+    expect(typeof client.onProcessExit).toBe("function");
+    expect(typeof client.onProcessError).toBe("function");
+    expect(typeof client.onFileChanged).toBe("function");
   });
 
-  it("startSession() resolves with a session object", async () => {
+  // ---- invoke-based commands ----
+
+  it("startSession() calls invoke with correct command and args", async () => {
     const client = createGsdClient();
-    const session = await client.startSession();
-    expect(session).toHaveProperty("id");
-    expect(typeof session.id).toBe("string");
-    expect(session).toHaveProperty("startedAt");
-    expect(typeof session.startedAt).toBe("string");
+    await client.startSession("/projects/my-app");
+    expect(mockInvoke).toHaveBeenCalledWith("start_gsd_session", {
+      projectPath: "/projects/my-app",
+    });
   });
 
-  it("stopSession() resolves without error", async () => {
+  it("stopSession() calls invoke with correct command", async () => {
     const client = createGsdClient();
-    await expect(client.stopSession()).resolves.toBeUndefined();
+    await client.stopSession();
+    expect(mockInvoke).toHaveBeenCalledWith("stop_gsd_session");
   });
 
-  it("sendCommand() resolves with a result object", async () => {
+  it("sendCommand() calls invoke with stringified command", async () => {
     const client = createGsdClient();
-    const result = await client.sendCommand("test");
-    expect(result).toHaveProperty("success");
-    expect(typeof result.success).toBe("boolean");
-    expect(result).toHaveProperty("data");
+    const command: RpcCommand = { type: "prompt", text: "hello" };
+    await client.sendCommand(command);
+    expect(mockInvoke).toHaveBeenCalledWith("send_gsd_command", {
+      command: JSON.stringify(command),
+    });
   });
 
-  it("sendCommand() accepts optional args", async () => {
+  it("queryState() calls invoke and returns QuerySnapshot", async () => {
+    const snapshot: QuerySnapshot = {
+      currentMilestone: "M001",
+      activeTasks: 3,
+      totalCost: 12.5,
+    };
+    mockInvoke.mockResolvedValue(snapshot);
     const client = createGsdClient();
-    const result = await client.sendCommand("build", { target: "release" });
-    expect(result.success).toBe(true);
+    const result = await client.queryState("/projects/my-app");
+    expect(mockInvoke).toHaveBeenCalledWith("query_gsd_state", {
+      projectPath: "/projects/my-app",
+    });
+    expect(result).toEqual(snapshot);
   });
 
-  it("queryState() resolves with a default state object", async () => {
+  it("listProjects() calls invoke and returns ProjectInfo array", async () => {
+    const projects: ProjectInfo[] = [
+      { id: "p1", name: "Alpha", path: "/alpha" },
+    ];
+    mockInvoke.mockResolvedValue(projects);
     const client = createGsdClient();
-    const state = await client.queryState();
-    expect(state).toHaveProperty("currentMilestone");
-    expect(state.currentMilestone).toBeNull();
-    expect(state).toHaveProperty("activeTasks");
-    expect(state.activeTasks).toBe(0);
-    expect(state).toHaveProperty("totalCost");
-    expect(state.totalCost).toBe(0);
+    const result = await client.listProjects("/scan");
+    expect(mockInvoke).toHaveBeenCalledWith("list_projects", {
+      scanPath: "/scan",
+    });
+    expect(result).toEqual(projects);
   });
 
-  it("listProjects() resolves with an empty array", async () => {
+  it("startFileWatcher() calls invoke with correct args", async () => {
     const client = createGsdClient();
-    const projects = await client.listProjects();
-    expect(Array.isArray(projects)).toBe(true);
-    expect(projects).toHaveLength(0);
+    await client.startFileWatcher("/projects/my-app");
+    expect(mockInvoke).toHaveBeenCalledWith("start_file_watcher", {
+      projectPath: "/projects/my-app",
+    });
+  });
+
+  it("stopFileWatcher() calls invoke with correct command", async () => {
+    const client = createGsdClient();
+    await client.stopFileWatcher();
+    expect(mockInvoke).toHaveBeenCalledWith("stop_file_watcher");
+  });
+
+  // ---- listen-based event subscriptions ----
+
+  it("onGsdEvent() calls listen with correct event name", async () => {
+    const client = createGsdClient();
+    const handler = vi.fn();
+    await client.onGsdEvent(handler);
+    expect(mockListen).toHaveBeenCalledWith("gsd-event", expect.any(Function));
+  });
+
+  it("onProcessExit() calls listen and returns unlisten function", async () => {
+    const mockUnlisten = vi.fn();
+    mockListen.mockResolvedValue(mockUnlisten);
+    const client = createGsdClient();
+    const unlisten = await client.onProcessExit(vi.fn());
+    expect(mockListen).toHaveBeenCalledWith(
+      "gsd-process-exit",
+      expect.any(Function),
+    );
+    expect(unlisten).toBe(mockUnlisten);
+  });
+
+  it("onProcessError() calls listen with correct event name", async () => {
+    const client = createGsdClient();
+    const handler = vi.fn();
+    await client.onProcessError(handler);
+    expect(mockListen).toHaveBeenCalledWith(
+      "gsd-process-error",
+      expect.any(Function),
+    );
+  });
+
+  it("onFileChanged() calls listen with correct event name", async () => {
+    const client = createGsdClient();
+    const handler = vi.fn();
+    await client.onFileChanged(handler);
+    expect(mockListen).toHaveBeenCalledWith(
+      "gsd-file-changed",
+      expect.any(Function),
+    );
+  });
+
+  // ---- error propagation ----
+
+  it("invoke failure propagates as rejected promise", async () => {
+    mockInvoke.mockRejectedValue(new Error("Tauri IPC error"));
+    const client = createGsdClient();
+    await expect(client.startSession("/bad")).rejects.toThrow(
+      "Tauri IPC error",
+    );
+  });
+
+  // ---- event handler invocation ----
+
+  it("onGsdEvent() wrapper passes event.payload to handler", async () => {
+    const handler = vi.fn();
+    // Capture the internal callback that listen receives
+    mockListen.mockImplementation(async (_event: string, cb: Function) => {
+      // Simulate Tauri calling the callback with an event envelope
+      cb({ payload: { raw: '{"type":"agent_start"}', timestamp: 1000 } });
+      return vi.fn();
+    });
+    const client = createGsdClient();
+    await client.onGsdEvent(handler);
+    expect(handler).toHaveBeenCalledWith({
+      raw: '{"type":"agent_start"}',
+      timestamp: 1000,
+    });
   });
 });
