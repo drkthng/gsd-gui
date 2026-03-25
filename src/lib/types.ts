@@ -72,6 +72,79 @@ export interface ProjectDisplayInfo extends ProjectInfo {
 }
 
 // ---------------------------------------------------------------------------
+// Milestone / Slice / Task tree types (for progress dashboard & roadmap)
+// ---------------------------------------------------------------------------
+
+export type CompletionStatus = "done" | "in-progress" | "pending" | "blocked";
+export type RiskLevel = "low" | "medium" | "high";
+
+export interface TaskInfo {
+  id: string;
+  title: string;
+  status: CompletionStatus;
+  cost: number;
+  duration: string | null;
+}
+
+export interface SliceInfo {
+  id: string;
+  title: string;
+  status: CompletionStatus;
+  risk: RiskLevel;
+  cost: number;
+  progress: number; // 0-100
+  tasks: TaskInfo[];
+  depends: string[];
+}
+
+export interface MilestoneInfo {
+  id: string;
+  title: string;
+  status: CompletionStatus;
+  cost: number;
+  progress: number; // 0-100
+  slices: SliceInfo[];
+}
+
+// ---------------------------------------------------------------------------
+// Cost data types (for cost overview charts)
+// ---------------------------------------------------------------------------
+
+export interface CostByPhase {
+  phase: string;
+  cost: number;
+}
+
+export interface CostByModel {
+  model: string;
+  cost: number;
+}
+
+export interface CostData {
+  totalCost: number;
+  budgetCeiling: number | null;
+  byPhase: CostByPhase[];
+  byModel: CostByModel[];
+  bySlice: { sliceId: string; title: string; cost: number }[];
+}
+
+// ---------------------------------------------------------------------------
+// Session types (for session browser)
+// ---------------------------------------------------------------------------
+
+export interface SessionInfo {
+  id: string;
+  name: string;
+  messageCount: number;
+  cost: number;
+  createdAt: string; // ISO
+  lastActiveAt: string; // ISO
+  preview: string; // first message preview
+  parentId: string | null;
+  isActive: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Process event payloads
 // Mirrors: src-tauri/src/gsd_process.rs
 // No rename_all — fields are single-word, so no casing issue.
