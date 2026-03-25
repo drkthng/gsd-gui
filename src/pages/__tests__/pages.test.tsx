@@ -31,9 +31,8 @@ const pages: PageDef[] = [
   {
     name: "Chat",
     Component: ChatPage,
-    uniqueText: "Recent Conversations",
-    hasMockSections: true,
-    sections: ["Recent Conversations", "Quick Actions"],
+    uniqueText: "Start a conversation",
+    hasMockSections: false,
   },
   {
     name: "Projects",
