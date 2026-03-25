@@ -4,7 +4,25 @@ import { MilestonesPage } from "@/pages/milestones-page";
 import { TimelinePage } from "@/pages/timeline-page";
 import { CostsPage } from "@/pages/costs-page";
 import { SettingsPage } from "@/pages/settings-page";
-import { HelpPage } from "@/pages/help-page";
+import { ProToolsPage } from "@/pages/pro-tools-page";
+import {
+  LogViewerPanel,
+  DebuggerPanel,
+  MetricsPanel,
+  TraceViewerPanel,
+  SessionManagerPanel,
+  StateInspectorPanel,
+  SecretsPanel,
+  ConfigEditorPanel,
+  BenchmarksPanel,
+  ResourceMonitorPanel,
+  PromptLabPanel,
+  AbTestingPanel,
+  DependencyGraphPanel,
+  CoverageMapPanel,
+  TokenUsagePanel,
+  ThemePreviewPanel,
+} from "@/components/pro-tools/panels";
 import type { View } from "@/stores/ui-store";
 
 export interface AppRoute {
@@ -34,7 +52,23 @@ export const appRoutes: RouteEntry[] = [
   { path: "/timeline", element: <TimelinePage />, view: "timeline" },
   { path: "/costs", element: <CostsPage />, view: "costs" },
   { path: "/settings", element: <SettingsPage />, view: "settings" },
-  { path: "/help", element: <HelpPage />, view: "help" },
+  { path: "/pro-tools", element: <ProToolsPage />, view: "pro-tools" },
+  { path: "/pro-tools/log-viewer", element: <LogViewerPanel />, view: "pro-tools" },
+  { path: "/pro-tools/debugger", element: <DebuggerPanel />, view: "pro-tools" },
+  { path: "/pro-tools/metrics", element: <MetricsPanel />, view: "pro-tools" },
+  { path: "/pro-tools/trace-viewer", element: <TraceViewerPanel />, view: "pro-tools" },
+  { path: "/pro-tools/session-manager", element: <SessionManagerPanel />, view: "pro-tools" },
+  { path: "/pro-tools/state-inspector", element: <StateInspectorPanel />, view: "pro-tools" },
+  { path: "/pro-tools/secrets", element: <SecretsPanel />, view: "pro-tools" },
+  { path: "/pro-tools/config-editor", element: <ConfigEditorPanel />, view: "pro-tools" },
+  { path: "/pro-tools/benchmarks", element: <BenchmarksPanel />, view: "pro-tools" },
+  { path: "/pro-tools/resource-monitor", element: <ResourceMonitorPanel />, view: "pro-tools" },
+  { path: "/pro-tools/prompt-lab", element: <PromptLabPanel />, view: "pro-tools" },
+  { path: "/pro-tools/ab-testing", element: <AbTestingPanel />, view: "pro-tools" },
+  { path: "/pro-tools/dependency-graph", element: <DependencyGraphPanel />, view: "pro-tools" },
+  { path: "/pro-tools/coverage-map", element: <CoverageMapPanel />, view: "pro-tools" },
+  { path: "/pro-tools/token-usage", element: <TokenUsagePanel />, view: "pro-tools" },
+  { path: "/pro-tools/theme-preview", element: <ThemePreviewPanel />, view: "pro-tools" },
 ];
 
 /** Only the navigable page routes (excludes the index redirect). */

@@ -6,7 +6,7 @@ import {
   Clock,
   DollarSign,
   Settings,
-  HelpCircle,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -31,7 +31,7 @@ const navItems: NavItem[] = [
   { label: "Timeline", path: "/timeline", view: "timeline", icon: Clock },
   { label: "Costs", path: "/costs", view: "costs", icon: DollarSign },
   { label: "Settings", path: "/settings", view: "settings", icon: Settings },
-  { label: "Help", path: "/help", view: "help", icon: HelpCircle },
+  { label: "Pro Tools", path: "/pro-tools", view: "pro-tools", icon: Wrench },
 ];
 
 /**
