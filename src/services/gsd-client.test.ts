@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { setupTauriMocks } from "@/test/tauri-mock";
 import { createGsdClient } from "@/services/gsd-client";
 import type { GsdClient } from "@/services/gsd-client";
-import type { RpcCommand, QuerySnapshot, ProjectInfo } from "@/lib/types";
+import type { RpcCommand, QuerySnapshot, ProjectInfo, SavedProject } from "@/lib/types";
 
 // vi.mock calls are hoisted — setupTauriMocks uses vi.hoisted() internally
 const { mockInvoke, mockListen } = setupTauriMocks();
@@ -28,6 +28,9 @@ describe("gsd-client", () => {
     expect(typeof client.onProcessExit).toBe("function");
     expect(typeof client.onProcessError).toBe("function");
     expect(typeof client.onFileChanged).toBe("function");
+    expect(typeof client.getSavedProjects).toBe("function");
+    expect(typeof client.addProject).toBe("function");
+    expect(typeof client.removeProject).toBe("function");
   });
 
   // ---- invoke-based commands ----
@@ -95,6 +98,51 @@ describe("gsd-client", () => {
     const client = createGsdClient();
     await client.stopFileWatcher();
     expect(mockInvoke).toHaveBeenCalledWith("stop_file_watcher");
+  });
+
+  // ---- project registry commands ----
+
+  it("getSavedProjects() calls invoke and returns SavedProject array", async () => {
+    const saved: SavedProject[] = [
+      { id: "p1", name: "alpha", path: "/alpha", description: null, addedAt: "123" },
+    ];
+    mockInvoke.mockResolvedValue(saved);
+    const client = createGsdClient();
+    const result = await client.getSavedProjects();
+    expect(mockInvoke).toHaveBeenCalledWith("get_saved_projects");
+    expect(result).toEqual(saved);
+  });
+
+  it("addProject() calls invoke with path and description", async () => {
+    const saved: SavedProject = {
+      id: "p1", name: "my-app", path: "/my-app", description: "desc", addedAt: "123",
+    };
+    mockInvoke.mockResolvedValue(saved);
+    const client = createGsdClient();
+    const result = await client.addProject("/my-app", "desc");
+    expect(mockInvoke).toHaveBeenCalledWith("add_project", {
+      projectPath: "/my-app",
+      description: "desc",
+    });
+    expect(result).toEqual(saved);
+  });
+
+  it("addProject() passes null description when omitted", async () => {
+    mockInvoke.mockResolvedValue({});
+    const client = createGsdClient();
+    await client.addProject("/path");
+    expect(mockInvoke).toHaveBeenCalledWith("add_project", {
+      projectPath: "/path",
+      description: null,
+    });
+  });
+
+  it("removeProject() calls invoke with project ID", async () => {
+    const client = createGsdClient();
+    await client.removeProject("p1");
+    expect(mockInvoke).toHaveBeenCalledWith("remove_project", {
+      projectId: "p1",
+    });
   });
 
   // ---- listen-based event subscriptions ----

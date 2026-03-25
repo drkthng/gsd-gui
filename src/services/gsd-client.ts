@@ -8,6 +8,7 @@ import type {
   RpcCommand,
   QuerySnapshot,
   ProjectInfo,
+  SavedProject,
   GsdEventPayload,
   GsdExitPayload,
   GsdErrorPayload,
@@ -19,6 +20,7 @@ export type {
   RpcCommand,
   QuerySnapshot,
   ProjectInfo,
+  SavedProject,
   GsdEventPayload,
   GsdExitPayload,
   GsdErrorPayload,
@@ -38,6 +40,10 @@ export interface GsdClient {
   listProjects: (scanPath: string) => Promise<ProjectInfo[]>;
   startFileWatcher: (projectPath: string) => Promise<void>;
   stopFileWatcher: () => Promise<void>;
+  // Project registry
+  getSavedProjects: () => Promise<SavedProject[]>;
+  addProject: (projectPath: string, description?: string) => Promise<SavedProject>;
+  removeProject: (projectId: string) => Promise<void>;
   // Event listeners (listen-based) — return unlisten functions
   onGsdEvent: (
     handler: (payload: GsdEventPayload) => void,
@@ -78,6 +84,16 @@ export function createGsdClient(): GsdClient {
       invoke("start_file_watcher", { projectPath }),
 
     stopFileWatcher: () => invoke("stop_file_watcher"),
+
+    // ---- project registry ----
+    getSavedProjects: () =>
+      invoke<SavedProject[]>("get_saved_projects"),
+
+    addProject: (projectPath: string, description?: string) =>
+      invoke<SavedProject>("add_project", { projectPath, description: description ?? null }),
+
+    removeProject: (projectId: string) =>
+      invoke("remove_project", { projectId }),
 
     // ---- listen-based event subscriptions ----
     onGsdEvent: (handler) =>

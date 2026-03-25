@@ -62,6 +62,15 @@ export interface ProjectInfo {
   path: string;
 }
 
+/** A project stored in the persistent registry. */
+export interface SavedProject {
+  id: string;
+  name: string;
+  path: string;
+  description: string | null;
+  addedAt: string;
+}
+
 /** Extended project info for gallery display. Built client-side from ProjectInfo + QuerySnapshot. */
 export interface ProjectDisplayInfo extends ProjectInfo {
   status: "active" | "paused" | "idle";

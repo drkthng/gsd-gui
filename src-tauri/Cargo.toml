@@ -23,6 +23,7 @@ tauri = { version = "2", features = [] }
 notify = { version = "8", features = [] }
 tokio = { version = "1", features = ["process", "io-util", "sync", "rt-multi-thread", "macros", "time"] }
 which = "7"
+tauri-plugin-dialog = "2"
 
 [profile.release]
 panic = "abort"

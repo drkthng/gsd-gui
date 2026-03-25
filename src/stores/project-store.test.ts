@@ -9,6 +9,9 @@ const { mockClient } = vi.hoisted(() => {
     listProjects: vi.fn().mockResolvedValue([]),
     startFileWatcher: vi.fn(),
     stopFileWatcher: vi.fn(),
+    getSavedProjects: vi.fn().mockResolvedValue([]),
+    addProject: vi.fn(),
+    removeProject: vi.fn(),
     onGsdEvent: vi.fn().mockResolvedValue(vi.fn()),
     onProcessExit: vi.fn().mockResolvedValue(vi.fn()),
     onProcessError: vi.fn().mockResolvedValue(vi.fn()),
@@ -22,6 +25,15 @@ vi.mock("@/services/gsd-client", () => ({
 }));
 
 import { useProjectStore } from "./project-store";
+import type { SavedProject } from "@/lib/types";
+
+const makeProject = (id: string, name: string): SavedProject => ({
+  id,
+  name,
+  path: `/projects/${name}`,
+  description: null,
+  addedAt: "1234567890",
+});
 
 describe("project-store", () => {
   beforeEach(() => {
@@ -45,64 +57,116 @@ describe("project-store", () => {
   });
 
   describe("loadProjects", () => {
-    it("loads projects and sets them", async () => {
-      const projects = [
-        { id: "p1", name: "Project 1", path: "/p1" },
-        { id: "p2", name: "Project 2", path: "/p2" },
-      ];
-      mockClient.listProjects.mockResolvedValueOnce(projects);
+    it("loads saved projects from registry", async () => {
+      const projects = [makeProject("p1", "alpha"), makeProject("p2", "beta")];
+      mockClient.getSavedProjects.mockResolvedValueOnce(projects);
 
-      const { loadProjects } = useProjectStore.getState();
-      await loadProjects("/scan");
+      await useProjectStore.getState().loadProjects();
 
       expect(useProjectStore.getState().projects).toEqual(projects);
       expect(useProjectStore.getState().isLoading).toBe(false);
-      expect(mockClient.listProjects).toHaveBeenCalledWith("/scan");
+      expect(mockClient.getSavedProjects).toHaveBeenCalled();
     });
 
     it("sets loading state during fetch", async () => {
-      let resolvePromise: (v: unknown[]) => void;
-      mockClient.listProjects.mockReturnValueOnce(
-        new Promise((r) => { resolvePromise = r; })
+      let resolve: (v: SavedProject[]) => void;
+      mockClient.getSavedProjects.mockReturnValueOnce(
+        new Promise<SavedProject[]>((r) => { resolve = r; }),
       );
 
-      const { loadProjects } = useProjectStore.getState();
-      const promise = loadProjects("/scan");
+      const promise = useProjectStore.getState().loadProjects();
       expect(useProjectStore.getState().isLoading).toBe(true);
 
-      resolvePromise!([]);
+      resolve!([]);
       await promise;
       expect(useProjectStore.getState().isLoading).toBe(false);
     });
 
     it("sets error on failure", async () => {
-      mockClient.listProjects.mockRejectedValueOnce(new Error("scan failed"));
-      const { loadProjects } = useProjectStore.getState();
-      await loadProjects("/bad");
-      expect(useProjectStore.getState().error).toBe("scan failed");
+      mockClient.getSavedProjects.mockRejectedValueOnce(new Error("disk error"));
+      await useProjectStore.getState().loadProjects();
+      expect(useProjectStore.getState().error).toBe("disk error");
       expect(useProjectStore.getState().isLoading).toBe(false);
+    });
+  });
+
+  describe("addProject", () => {
+    it("adds a project and reloads the list", async () => {
+      const saved = makeProject("p1", "new-project");
+      mockClient.addProject.mockResolvedValueOnce(saved);
+      mockClient.getSavedProjects.mockResolvedValueOnce([saved]);
+
+      const result = await useProjectStore.getState().addProject("/projects/new-project");
+
+      expect(result).toEqual(saved);
+      expect(mockClient.addProject).toHaveBeenCalledWith("/projects/new-project", undefined);
+      expect(useProjectStore.getState().projects).toEqual([saved]);
+    });
+
+    it("passes description when provided", async () => {
+      const saved = makeProject("p1", "described");
+      mockClient.addProject.mockResolvedValueOnce(saved);
+      mockClient.getSavedProjects.mockResolvedValueOnce([saved]);
+
+      await useProjectStore.getState().addProject("/path", "My project");
+      expect(mockClient.addProject).toHaveBeenCalledWith("/path", "My project");
+    });
+
+    it("sets error and throws on failure", async () => {
+      mockClient.addProject.mockRejectedValueOnce(new Error("no .gsd/ found"));
+
+      await expect(
+        useProjectStore.getState().addProject("/bad"),
+      ).rejects.toThrow("no .gsd/ found");
+
+      expect(useProjectStore.getState().error).toBe("no .gsd/ found");
+    });
+  });
+
+  describe("removeProject", () => {
+    it("removes a project and reloads the list", async () => {
+      const p1 = makeProject("p1", "alpha");
+      const p2 = makeProject("p2", "beta");
+      useProjectStore.setState({ projects: [p1, p2], activeProject: p1 });
+
+      mockClient.removeProject.mockResolvedValueOnce(undefined);
+      mockClient.getSavedProjects.mockResolvedValueOnce([p2]);
+
+      await useProjectStore.getState().removeProject("p1");
+
+      expect(mockClient.removeProject).toHaveBeenCalledWith("p1");
+      expect(useProjectStore.getState().projects).toEqual([p2]);
+      // Active project was removed, so it should be cleared
+      expect(useProjectStore.getState().activeProject).toBeNull();
+    });
+
+    it("preserves activeProject if a different project is removed", async () => {
+      const p1 = makeProject("p1", "alpha");
+      const p2 = makeProject("p2", "beta");
+      useProjectStore.setState({ projects: [p1, p2], activeProject: p1 });
+
+      mockClient.removeProject.mockResolvedValueOnce(undefined);
+      mockClient.getSavedProjects.mockResolvedValueOnce([p1]);
+
+      await useProjectStore.getState().removeProject("p2");
+
+      expect(useProjectStore.getState().activeProject).toEqual(p1);
     });
   });
 
   describe("selectProject", () => {
     it("sets active project", () => {
-      const project = { id: "p1", name: "Project 1", path: "/p1" };
-      const { selectProject } = useProjectStore.getState();
-      selectProject(project);
+      const project = makeProject("p1", "alpha");
+      useProjectStore.getState().selectProject(project);
       expect(useProjectStore.getState().activeProject).toEqual(project);
     });
   });
 
-  describe("clearProjects", () => {
-    it("resets projects and active project", () => {
-      useProjectStore.setState({
-        projects: [{ id: "p1", name: "P1", path: "/p1" }],
-        activeProject: { id: "p1", name: "P1", path: "/p1" },
-      });
-      const { clearProjects } = useProjectStore.getState();
-      clearProjects();
-      expect(useProjectStore.getState().projects).toEqual([]);
-      expect(useProjectStore.getState().activeProject).toBeNull();
+  describe("clearError", () => {
+    it("clears the error state", () => {
+      useProjectStore.setState({ error: "something broke" });
+      useProjectStore.getState().clearError();
+      expect(useProjectStore.getState().error).toBeNull();
     });
   });
 });

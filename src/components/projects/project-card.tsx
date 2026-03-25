@@ -1,51 +1,52 @@
+import { Folder, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import type { ProjectDisplayInfo } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import type { SavedProject } from "@/lib/types";
 
 interface ProjectCardProps {
-  project: ProjectDisplayInfo;
-  onClick: (project: ProjectDisplayInfo) => void;
+  project: SavedProject;
+  onClick: () => void;
+  onRemove: () => void;
 }
 
-const statusConfig = {
-  active: { label: "Active", className: "bg-green-500/10 text-green-600 dark:text-green-400" },
-  paused: { label: "Paused", className: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" },
-  idle: { label: "Idle", className: "bg-muted text-muted-foreground" },
-} as const;
-
-export function ProjectCard({ project, onClick }: ProjectCardProps) {
-  const status = statusConfig[project.status];
-
+export function ProjectCard({ project, onClick, onRemove }: ProjectCardProps) {
   return (
     <Card
-      className="cursor-pointer transition-colors hover:bg-muted/50"
-      onClick={() => onClick(project)}
+      className="cursor-pointer transition-colors hover:bg-muted/50 group"
+      onClick={onClick}
     >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-sm font-medium truncate">{project.name}</CardTitle>
-          <Badge variant="outline" className={`shrink-0 text-[10px] ${status.className}`}>
-            {status.label}
-          </Badge>
-        </div>
-        <p className="text-xs text-muted-foreground truncate">{project.path}</p>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          {project.currentMilestone && (
-            <Badge variant="secondary" className="text-[10px]">{project.currentMilestone}</Badge>
-          )}
-          <span className="font-mono">${project.totalCost.toFixed(2)}</span>
-        </div>
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Progress</span>
-            <span>{project.progress}%</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <Folder className="h-4 w-4 shrink-0 text-primary" />
+            <CardTitle className="text-sm font-medium truncate">
+              {project.name}
+            </CardTitle>
           </div>
-          <Progress value={project.progress} className="h-1.5" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            aria-label={`Remove ${project.name}`}
+          >
+            <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+          </Button>
         </div>
-      </CardContent>
+        <p className="text-xs text-muted-foreground truncate font-mono">
+          {project.path}
+        </p>
+      </CardHeader>
+      {project.description && (
+        <CardContent className="pt-0">
+          <p className="text-xs text-muted-foreground line-clamp-2">
+            {project.description}
+          </p>
+        </CardContent>
+      )}
     </Card>
   );
 }
