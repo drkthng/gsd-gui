@@ -15,6 +15,7 @@ import { SidebarNav } from "./sidebar-nav";
 import { StatusBar } from "@/components/status-bar/status-bar";
 import { ModeToggle } from "@/components/mode-toggle";
 import { useGsdEvents } from "@/hooks/use-gsd-events";
+import { UIRequestDialog } from "@/components/controls";
 
 /**
  * Root app shell layout composing sidebar navigation, main content, and status bar.
@@ -67,6 +68,7 @@ export function AppShell() {
           </div>
           <StatusBar />
         </div>
+        <UIRequestDialog />
       </SidebarInset>
     </SidebarProvider>
   );
