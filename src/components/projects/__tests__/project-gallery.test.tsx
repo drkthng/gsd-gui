@@ -17,7 +17,7 @@ vi.mock("@/services/gsd-client", () => ({
 }));
 
 const mockProjects: ProjectDisplayInfo[] = [
-  { id: "p1", name: "gsd-ui", path: "/gsd-ui", status: "active", currentMilestone: "M003", totalCost: 4.52, progress: 68, lastActivity: "2026-03-25T10:00:00Z" },
+  { id: "p1", name: "gsd-gui", path: "/gsd-gui", status: "active", currentMilestone: "M003", totalCost: 4.52, progress: 68, lastActivity: "2026-03-25T10:00:00Z" },
   { id: "p2", name: "api-server", path: "/api-server", status: "paused", currentMilestone: "M001", totalCost: 1.20, progress: 30, lastActivity: "2026-03-24T08:00:00Z" },
   { id: "p3", name: "docs-site", path: "/docs-site", status: "idle", currentMilestone: null, totalCost: 0, progress: 0, lastActivity: null },
 ];
@@ -46,7 +46,7 @@ describe("ProjectGallery", () => {
   it("renders project cards from store", () => {
     useProjectStore.setState({ projects: mockProjects });
     renderWithProviders(<ProjectGallery />);
-    expect(screen.getByText("gsd-ui")).toBeInTheDocument();
+    expect(screen.getByText("gsd-gui")).toBeInTheDocument();
     expect(screen.getByText("api-server")).toBeInTheDocument();
     expect(screen.getByText("docs-site")).toBeInTheDocument();
   });
@@ -58,7 +58,7 @@ describe("ProjectGallery", () => {
     const search = screen.getByPlaceholderText(/search/i);
     await userEvent.type(search, "gsd");
 
-    expect(screen.getByText("gsd-ui")).toBeInTheDocument();
+    expect(screen.getByText("gsd-gui")).toBeInTheDocument();
     expect(screen.queryByText("api-server")).not.toBeInTheDocument();
     expect(screen.queryByText("docs-site")).not.toBeInTheDocument();
   });
@@ -72,7 +72,7 @@ describe("ProjectGallery", () => {
   it("clicking card calls selectProject", async () => {
     useProjectStore.setState({ projects: mockProjects });
     renderWithProviders(<ProjectGallery />);
-    await userEvent.click(screen.getByText("gsd-ui"));
+    await userEvent.click(screen.getByText("gsd-gui"));
     expect(useProjectStore.getState().activeProject?.id).toBe("p1");
   });
 });

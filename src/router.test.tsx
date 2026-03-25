@@ -8,7 +8,7 @@ import { Navigate } from "react-router-dom";
 /** Helper: render routes at a given path inside ThemeProvider + MemoryRouter */
 function renderAtPath(path: string) {
   return render(
-    <ThemeProvider defaultTheme="system" storageKey="gsd-ui-theme-test">
+    <ThemeProvider defaultTheme="system" storageKey="gsd-gui-theme-test">
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           {appRoutes.map((route) =>

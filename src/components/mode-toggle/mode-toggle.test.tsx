@@ -45,7 +45,7 @@ describe("ModeToggle", () => {
     await user.click(screen.getByRole("button", { name: /toggle theme/i }));
     await user.click(screen.getByRole("menuitem", { name: /dark/i }));
     expect(document.documentElement.classList.contains("dark")).toBe(true);
-    expect(localStorage.getItem("gsd-ui-theme-test")).toBe("dark");
+    expect(localStorage.getItem("gsd-gui-theme-test")).toBe("dark");
   });
 
   it("clicking 'Light' applies light theme to document root", async () => {
@@ -54,7 +54,7 @@ describe("ModeToggle", () => {
     await user.click(screen.getByRole("button", { name: /toggle theme/i }));
     await user.click(screen.getByRole("menuitem", { name: /light/i }));
     expect(document.documentElement.classList.contains("light")).toBe(true);
-    expect(localStorage.getItem("gsd-ui-theme-test")).toBe("light");
+    expect(localStorage.getItem("gsd-gui-theme-test")).toBe("light");
   });
 
   it("clicking 'System' sets system theme and persists to localStorage", async () => {
@@ -62,7 +62,7 @@ describe("ModeToggle", () => {
     renderWithProviders(<ModeToggle />);
     await user.click(screen.getByRole("button", { name: /toggle theme/i }));
     await user.click(screen.getByRole("menuitem", { name: /system/i }));
-    expect(localStorage.getItem("gsd-ui-theme-test")).toBe("system");
+    expect(localStorage.getItem("gsd-gui-theme-test")).toBe("system");
     // System resolves to light (matchMedia mock returns matches: false for prefers-color-scheme: dark)
     expect(document.documentElement.classList.contains("light")).toBe(true);
   });

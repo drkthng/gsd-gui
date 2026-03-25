@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    gsd_ui_lib::run();
+    gsd_gui_lib::run();
 }

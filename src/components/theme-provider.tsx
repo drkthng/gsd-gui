@@ -20,7 +20,7 @@ const ThemeProviderContext = createContext<ThemeProviderState | undefined>(
 export function ThemeProvider({
   children,
   defaultTheme = "system",
-  storageKey = "gsd-ui-theme",
+  storageKey = "gsd-gui-theme",
   ...props
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(

@@ -99,7 +99,7 @@ describe("ThemeProvider", () => {
 
   it("persists theme to localStorage", () => {
     render(
-      <ThemeProvider storageKey="gsd-ui-theme">
+      <ThemeProvider storageKey="gsd-gui-theme">
         <ThemeConsumer />
       </ThemeProvider>,
     );
@@ -108,14 +108,14 @@ describe("ThemeProvider", () => {
       screen.getByText("Set Dark").click();
     });
 
-    expect(localStorage.getItem("gsd-ui-theme")).toBe("dark");
+    expect(localStorage.getItem("gsd-gui-theme")).toBe("dark");
   });
 
   it("reads initial theme from localStorage", () => {
-    localStorage.setItem("gsd-ui-theme", "light");
+    localStorage.setItem("gsd-gui-theme", "light");
 
     render(
-      <ThemeProvider storageKey="gsd-ui-theme">
+      <ThemeProvider storageKey="gsd-gui-theme">
         <ThemeConsumer />
       </ThemeProvider>,
     );

@@ -1,4 +1,4 @@
-# GSD-UI — Design & Architecture Analysis
+# GSD-GUI — Design & Architecture Analysis
 
 > A comprehensive plan for building a desktop GUI for GSD-2, covering architecture, features, technology choices, screen layouts, data contracts, and ready-to-use prompts for a GSD agent to implement each phase.
 
@@ -737,7 +737,7 @@ tests/
 **GSD Agent Prompt:**
 
 ```
-Create a new Tauri 2 desktop application in D:\AiProjects\gsd-ui with the following stack:
+Create a new Tauri 2 desktop application in D:\AiProjects\gsd-gui with the following stack:
 - Tauri 2 (latest stable) with Rust backend
 - React 19 + TypeScript 5.7+
 - Vite 6 as build tool
@@ -792,7 +792,7 @@ Verification: npm run test should pass, npm run dev should show the app shell.
 **GSD Agent Prompt:**
 
 ```
-Implement the GSD process manager in the Tauri backend (src-tauri/) for gsd-ui.
+Implement the GSD process manager in the Tauri backend (src-tauri/) for gsd-gui.
 
 Requirements:
 1. A Rust module `gsd_process.rs` that:
@@ -849,7 +849,7 @@ Verification: cargo test should pass.
 **GSD Agent Prompt:**
 
 ```
-Implement the React-side GSD integration layer for gsd-ui.
+Implement the React-side GSD integration layer for gsd-gui.
 
 Requirements:
 
@@ -915,7 +915,7 @@ Verification: npm run test should pass all new tests.
 **GSD Agent Prompt:**
 
 ```
-Implement the Project Gallery (home screen) and New Project Wizard for gsd-ui.
+Implement the Project Gallery (home screen) and New Project Wizard for gsd-gui.
 
 Requirements:
 
@@ -968,7 +968,7 @@ Verification: npm run test should pass.
 **GSD Agent Prompt:**
 
 ```
-Implement the Chat interface and Auto Mode controls for gsd-ui.
+Implement the Chat interface and Auto Mode controls for gsd-gui.
 
 Requirements:
 
@@ -1030,7 +1030,7 @@ Verification: npm run test should pass.
 **GSD Agent Prompt:**
 
 ```
-Implement the Progress Dashboard, Roadmap View, and Cost Charts for gsd-ui.
+Implement the Progress Dashboard, Roadmap View, and Cost Charts for gsd-gui.
 
 Requirements:
 
@@ -1080,7 +1080,7 @@ Verification: npm run test should pass.
 **GSD Agent Prompt:**
 
 ```
-Implement the Session Browser and Configuration Panel for gsd-ui.
+Implement the Session Browser and Configuration Panel for gsd-gui.
 
 Requirements:
 
@@ -1130,7 +1130,7 @@ Verification: npm run test should pass.
 **GSD Agent Prompt:**
 
 ```
-Implement the Pro Tools area for gsd-ui — the advanced features section accessible from the sidebar.
+Implement the Pro Tools area for gsd-gui — the advanced features section accessible from the sidebar.
 
 Requirements:
 
@@ -1180,7 +1180,7 @@ Verification: npm run test should pass.
 **GSD Agent Prompt:**
 
 ```
-Final polish and packaging for gsd-ui.
+Final polish and packaging for gsd-gui.
 
 Requirements:
 
@@ -1229,7 +1229,7 @@ Verification: npm run test (unit), npm run test:e2e (Playwright), cargo tauri bu
 ## Appendix A: File & Folder Structure
 
 ```
-gsd-ui/
+gsd-gui/
 ├── src-tauri/
 │   ├── Cargo.toml
 │   ├── tauri.conf.json
@@ -1336,4 +1336,4 @@ gsd-ui/
 
 ---
 
-*This document serves as the complete specification for building gsd-ui. Each phase prompt is self-contained and ready for a GSD agent to execute.*
+*This document serves as the complete specification for building gsd-gui. Each phase prompt is self-contained and ready for a GSD agent to execute.*
