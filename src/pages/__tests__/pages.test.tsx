@@ -27,9 +27,8 @@ vi.mock("@/services/gsd-client", () => ({
 }));
 
 // The pages test checks for synchronous content. The ProjectGallery now auto-loads
-// on mount via useEffect, which briefly shows loading state. Pre-render the "no projects"
-// state by importing the store after mocks are in place.
-import { useProjectStore } from "@/stores/project-store";
+// on mount via useEffect, which briefly shows loading state. The mock getSavedProjects
+// resolves immediately so the empty state renders.
 
 interface PageDef {
   name: string;
