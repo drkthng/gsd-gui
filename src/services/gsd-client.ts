@@ -15,6 +15,9 @@ import type {
   ProjectInfo,
   SavedProject,
   MilestoneInfo,
+  SessionInfo,
+  PreferencesData,
+  ActivityEntry,
   GsdEventPayload,
   GsdExitPayload,
   GsdErrorPayload,
@@ -28,6 +31,9 @@ export type {
   ProjectInfo,
   SavedProject,
   MilestoneInfo,
+  SessionInfo,
+  PreferencesData,
+  ActivityEntry,
   GsdEventPayload,
   GsdExitPayload,
   GsdErrorPayload,
@@ -53,6 +59,11 @@ export interface GsdClient {
   getSavedProjects: () => Promise<SavedProject[]>;
   addProject: (projectPath: string, description?: string) => Promise<SavedProject>;
   removeProject: (projectId: string) => Promise<void>;
+  // Session / preferences / activity parsers
+  listSessions: (projectPath: string) => Promise<SessionInfo[]>;
+  readPreferences: (projectPath: string) => Promise<PreferencesData>;
+  writePreferences: (projectPath: string, data: PreferencesData) => Promise<void>;
+  listActivity: (projectPath: string) => Promise<ActivityEntry[]>;
   // Event listeners (listen-based) — return unlisten functions
   onGsdEvent: (
     handler: (payload: GsdEventPayload) => void,
@@ -140,6 +151,26 @@ function createTauriClient(): GsdClient {
     removeProject: async (projectId: string) => {
       const invoke = await getInvoke();
       return invoke("remove_project", { projectId });
+    },
+
+    listSessions: async (projectPath: string) => {
+      const invoke = await getInvoke();
+      return invoke<SessionInfo[]>("list_project_sessions_cmd", { projectPath });
+    },
+
+    readPreferences: async (projectPath: string) => {
+      const invoke = await getInvoke();
+      return invoke<PreferencesData>("read_preferences_cmd", { projectPath });
+    },
+
+    writePreferences: async (projectPath: string, data: PreferencesData) => {
+      const invoke = await getInvoke();
+      return invoke("write_preferences_cmd", { projectPath, prefs: data });
+    },
+
+    listActivity: async (projectPath: string) => {
+      const invoke = await getInvoke();
+      return invoke<ActivityEntry[]>("list_activity_cmd", { projectPath });
     },
 
     onGsdEvent: async (handler) => {

@@ -38,6 +38,7 @@ describe("Router config", () => {
     { path: "/projects", heading: /projects/i },
     { path: "/milestones", heading: /milestones/i },
     { path: "/timeline", heading: /timeline/i },
+    { path: "/sessions", heading: /sessions/i },
     { path: "/costs", heading: /costs/i },
     { path: "/settings", heading: /settings/i },
     { path: "/pro-tools", heading: /pro tools/i },
@@ -63,7 +64,7 @@ describe("Router config", () => {
     ).toBeInTheDocument();
   });
 
-  it("exports exactly 12 route entries (11 pages + 1 index redirect)", () => {
-    expect(appRoutes).toHaveLength(24);
+  it("exports exactly 25 route entries (12 pages + 12 pro-tools sub-routes + 1 index redirect)", () => {
+    expect(appRoutes).toHaveLength(25);
   });
 });

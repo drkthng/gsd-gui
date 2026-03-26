@@ -5,6 +5,7 @@ import { TimelinePage } from "@/pages/timeline-page";
 import { CostsPage } from "@/pages/costs-page";
 import { SettingsPage } from "@/pages/settings-page";
 import { ProToolsPage } from "@/pages/pro-tools-page";
+import { SessionsPage } from "@/pages/sessions-page";
 import {
   LogViewerPanel,
   DebuggerPanel,
@@ -50,6 +51,7 @@ export const appRoutes: RouteEntry[] = [
   { path: "/projects", element: <ProjectsPage />, view: "projects" },
   { path: "/milestones", element: <MilestonesPage />, view: "milestones" },
   { path: "/timeline", element: <TimelinePage />, view: "timeline" },
+  { path: "/sessions", element: <SessionsPage />, view: "sessions" },
   { path: "/costs", element: <CostsPage />, view: "costs" },
   { path: "/settings", element: <SettingsPage />, view: "settings" },
   { path: "/pro-tools", element: <ProToolsPage />, view: "pro-tools" },

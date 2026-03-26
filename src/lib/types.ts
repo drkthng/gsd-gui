@@ -166,6 +166,43 @@ export interface SessionInfo {
 }
 
 // ---------------------------------------------------------------------------
+// Preferences data (from preferences.md YAML frontmatter)
+// Keys are camelCase matching Rust serde(rename_all = "camelCase") output.
+// Mirrors: src-tauri/src/preferences_parser.rs — returns serde_json::Value
+// ---------------------------------------------------------------------------
+
+export interface PreferencesData {
+  version?: number;
+  mode?: string;
+  git?: {
+    isolation?: string;
+    main_branch?: string;
+    auto_push?: boolean;
+  };
+  custom_instructions?: string[];
+  always_use_skills?: string[];
+  prefer_skills?: string[];
+  avoid_skills?: string[];
+  [key: string]: unknown; // allow arbitrary YAML fields — keys are snake_case from YAML source
+}
+
+// ---------------------------------------------------------------------------
+// Activity entry (from activity JSONL files)
+// Mirrors: src-tauri/src/activity_parser.rs — ActivityEntry
+// serde(rename_all = "camelCase")
+// ---------------------------------------------------------------------------
+
+export interface ActivityEntry {
+  id: string;
+  action: string; // "plan-slice", "execute-task", etc.
+  milestoneId: string;
+  sliceId: string | null;
+  taskId: string | null;
+  timestamp: string; // ISO
+  messageCount: number;
+}
+
+// ---------------------------------------------------------------------------
 // Process event payloads
 // Mirrors: src-tauri/src/gsd_process.rs
 // No rename_all — fields are single-word, so no casing issue.
