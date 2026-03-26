@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T01",
+  "unitId": "M005/S03/T01",
+  "timestamp": 1774443253885,
+  "passed": false,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "npx vitest --run -- session-manager-panel state-inspector-panel secrets-panel config-editor-panel",
+      "exitCode": 1,
+      "durationMs": 40307,
+      "verdict": "fail"
+    },
+    {
+      "command": "npx vitest --run",
+      "exitCode": 1,
+      "durationMs": 41217,
+      "verdict": "fail"
+    }
+  ],
+  "retryAttempt": 1,
+  "maxRetries": 2
+}

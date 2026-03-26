@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T01",
+  "unitId": "M005/S02/T01",
+  "timestamp": 1774442388525,
+  "passed": false,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "npx vitest --run -- log-viewer-panel debugger-panel metrics-panel trace-viewer-panel",
+      "exitCode": 1,
+      "durationMs": 39107,
+      "verdict": "fail"
+    }
+  ],
+  "retryAttempt": 1,
+  "maxRetries": 2
+}

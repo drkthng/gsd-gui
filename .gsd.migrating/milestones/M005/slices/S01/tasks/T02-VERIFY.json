@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T02",
+  "unitId": "M005/S01/T02",
+  "timestamp": 1774441112330,
+  "passed": false,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "npx vitest --run -- parallel-panel headless-launcher-panel worktree-panel",
+      "exitCode": 1,
+      "durationMs": 30268,
+      "verdict": "fail"
+    }
+  ],
+  "retryAttempt": 1,
+  "maxRetries": 2
+}

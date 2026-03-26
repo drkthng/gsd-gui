@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from "vitest";
 import { setupTauriMocks } from "@/test/tauri-mock";
 import { createGsdClient } from "@/services/gsd-client";
 import type { GsdClient } from "@/services/gsd-client";
@@ -8,6 +8,14 @@ import type { RpcCommand, QuerySnapshot, ProjectInfo, SavedProject, MilestoneInf
 const { mockInvoke, mockListen } = setupTauriMocks();
 
 describe("gsd-client", () => {
+  // Simulate Tauri environment so createGsdClient() returns the Tauri client
+  beforeAll(() => {
+    (window as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+  });
+  afterAll(() => {
+    delete (window as Record<string, unknown>).__TAURI_INTERNALS__;
+  });
+
   beforeEach(() => {
     mockInvoke.mockReset().mockResolvedValue(undefined);
     mockListen.mockReset().mockResolvedValue(vi.fn());

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T01",
+  "unitId": "M006/S03/T01",
+  "timestamp": 1774518013279,
+  "passed": true,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "npm run test -- --run src/lib/milestone-filters.test.ts src/components/milestones/milestone-filter-bar.test.tsx",
+      "exitCode": 0,
+      "durationMs": 6726,
+      "verdict": "pass"
+    },
+    {
+      "command": "npm run test -- --run",
+      "exitCode": 0,
+      "durationMs": 101470,
+      "verdict": "pass"
+    }
+  ]
+}

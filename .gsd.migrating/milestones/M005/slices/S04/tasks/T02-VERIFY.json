@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T02",
+  "unitId": "M005/S04/T02",
+  "timestamp": 1774449161907,
+  "passed": false,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "npm run test -- --run",
+      "exitCode": 1,
+      "durationMs": 44262,
+      "verdict": "fail"
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 1,
+      "durationMs": 17301,
+      "verdict": "fail"
+    }
+  ],
+  "retryAttempt": 1,
+  "maxRetries": 2
+}

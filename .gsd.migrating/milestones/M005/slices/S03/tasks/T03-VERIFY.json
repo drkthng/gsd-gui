@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T03",
+  "unitId": "M005/S03/T03",
+  "timestamp": 1774447359092,
+  "passed": false,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "npx vitest --run -- dependency-graph-panel coverage-map-panel token-usage-panel theme-preview-panel",
+      "exitCode": 1,
+      "durationMs": 52677,
+      "verdict": "fail"
+    },
+    {
+      "command": "npx vitest --run",
+      "exitCode": 1,
+      "durationMs": 49844,
+      "verdict": "fail"
+    }
+  ],
+  "retryAttempt": 1,
+  "maxRetries": 2
+}

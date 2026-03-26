@@ -1,8 +1,10 @@
 // GSD Client — IPC abstraction layer
 // This is the ONLY file in the frontend that may import @tauri-apps/api (D005).
+// When running outside Tauri (browser dev mode), a demo client is used instead.
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { createDemoClient } from "./demo-client";
 
 import type {
   RpcCommand,
@@ -64,12 +66,20 @@ export interface GsdClient {
 }
 
 // ---------------------------------------------------------------------------
-// Factory
+// Tauri detection
 // ---------------------------------------------------------------------------
 
-export function createGsdClient(): GsdClient {
+/** Returns true when running inside the Tauri webview (not a plain browser). */
+function isTauri(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+// ---------------------------------------------------------------------------
+// Tauri client (real IPC)
+// ---------------------------------------------------------------------------
+
+function createTauriClient(): GsdClient {
   return {
-    // ---- invoke-based commands ----
     startSession: (projectPath: string) =>
       invoke("start_gsd_session", { projectPath }),
 
@@ -89,11 +99,9 @@ export function createGsdClient(): GsdClient {
 
     stopFileWatcher: () => invoke("stop_file_watcher"),
 
-    // ---- GSD parser ----
     parseProjectMilestones: (projectPath: string) =>
       invoke<MilestoneInfo[]>("parse_project_milestones", { projectPath }),
 
-    // ---- project registry ----
     getSavedProjects: () =>
       invoke<SavedProject[]>("get_saved_projects"),
 
@@ -103,7 +111,6 @@ export function createGsdClient(): GsdClient {
     removeProject: (projectId: string) =>
       invoke("remove_project", { projectId }),
 
-    // ---- listen-based event subscriptions ----
     onGsdEvent: (handler) =>
       listen<GsdEventPayload>("gsd-event", (event) =>
         handler(event.payload),
@@ -124,4 +131,12 @@ export function createGsdClient(): GsdClient {
         handler(event.payload),
       ).then((unlisten) => unlisten),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Factory
+// ---------------------------------------------------------------------------
+
+export function createGsdClient(): GsdClient {
+  return isTauri() ? createTauriClient() : createDemoClient();
 }

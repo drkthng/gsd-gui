@@ -13,6 +13,10 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    watch: {
+      // Exclude agent/tool working directories that write files continuously
+      ignored: ["**/.bg-shell/**", "**/.gsd/**"],
+    },
   },
   resolve: {
     alias: {

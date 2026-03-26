@@ -1,12 +1,28 @@
 import { useEffect, useState } from "react";
 import { FolderKanban, FolderOpen, Search } from "lucide-react";
-import { open } from "@tauri-apps/plugin-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { ProjectCard } from "./project-card";
 import { useProjectStore } from "@/stores/project-store";
+
+/** Safely open a native folder picker. Falls back to prompt() in browser mode. */
+async function openDirectoryPicker(): Promise<string | null> {
+  try {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: "Select a GSD project folder",
+    });
+    return selected as string | null;
+  } catch {
+    // Not running in Tauri — fall back to a browser prompt
+    const path = window.prompt("Enter project folder path:");
+    return path || null;
+  }
+}
 
 /**
  * Project gallery — grid of project cards with search/filter.
@@ -31,13 +47,9 @@ export function ProjectGallery() {
   const handleImportProject = async () => {
     setImportError(null);
     try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: "Select a GSD project folder",
-      });
+      const selected = await openDirectoryPicker();
       if (selected) {
-        await addProject(selected as string);
+        await addProject(selected);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

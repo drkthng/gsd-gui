@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T01",
+  "unitId": "M005/S05/T01",
+  "timestamp": 1774449550949,
+  "passed": false,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "npx playwright test e2e/smoke.spec.ts --reporter=list",
+      "exitCode": 1,
+      "durationMs": 12881,
+      "verdict": "fail"
+    }
+  ],
+  "retryAttempt": 1,
+  "maxRetries": 2
+}
