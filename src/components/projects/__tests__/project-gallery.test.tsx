@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProjectGallery } from "../project-gallery";
 import { useProjectStore } from "@/stores/project-store";
+import { renderWithProviders } from "@/test/test-utils";
 import type { SavedProject } from "@/lib/types";
 
 // Mock the Tauri dialog plugin
@@ -19,6 +20,7 @@ const { mockClient } = vi.hoisted(() => {
     startSession: vi.fn(), stopSession: vi.fn(), sendCommand: vi.fn(),
     queryState: vi.fn(), listProjects: vi.fn(), startFileWatcher: vi.fn(),
     stopFileWatcher: vi.fn(),
+    parseProjectMilestones: vi.fn().mockResolvedValue([]),
     onGsdEvent: vi.fn().mockResolvedValue(vi.fn()),
     onProcessExit: vi.fn().mockResolvedValue(vi.fn()),
     onProcessError: vi.fn().mockResolvedValue(vi.fn()),
@@ -52,7 +54,7 @@ describe("ProjectGallery", () => {
   });
 
   it("shows empty state with import button when no projects", async () => {
-    render(<ProjectGallery />);
+    renderWithProviders(<ProjectGallery />, { initialRoute: "/projects" });
     await waitFor(() => {
       expect(screen.getByText(/no projects/i)).toBeInTheDocument();
     });
@@ -64,7 +66,7 @@ describe("ProjectGallery", () => {
     mockClient.getSavedProjects.mockResolvedValue(projects);
     useProjectStore.setState({ projects });
 
-    render(<ProjectGallery />);
+    renderWithProviders(<ProjectGallery />, { initialRoute: "/projects" });
     await waitFor(() => {
       expect(screen.getByText("gsd-gui")).toBeInTheDocument();
     });
@@ -76,7 +78,7 @@ describe("ProjectGallery", () => {
     mockClient.getSavedProjects.mockResolvedValue(projects);
     useProjectStore.setState({ projects });
 
-    render(<ProjectGallery />);
+    renderWithProviders(<ProjectGallery />, { initialRoute: "/projects" });
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/search/i)).toBeInTheDocument();
     });
@@ -89,7 +91,7 @@ describe("ProjectGallery", () => {
   it("shows error state when error and no projects", async () => {
     mockClient.getSavedProjects.mockRejectedValue(new Error("Something went wrong"));
 
-    render(<ProjectGallery />);
+    renderWithProviders(<ProjectGallery />, { initialRoute: "/projects" });
     await waitFor(() => {
       expect(screen.getByText("Something went wrong")).toBeInTheDocument();
     });
@@ -97,7 +99,26 @@ describe("ProjectGallery", () => {
 
   it("shows loading state initially", () => {
     useProjectStore.setState({ isLoading: true });
-    render(<ProjectGallery />);
+    renderWithProviders(<ProjectGallery />, { initialRoute: "/projects" });
     expect(screen.getByText(/loading projects/i)).toBeInTheDocument();
+  });
+
+  it("navigates to milestones when a project card is clicked", async () => {
+    const projects = [makeProject("p1", "gsd-gui")];
+    mockClient.getSavedProjects.mockResolvedValue(projects);
+    useProjectStore.setState({ projects });
+
+    const { container } = renderWithProviders(<ProjectGallery />, { initialRoute: "/projects" });
+    await waitFor(() => {
+      expect(screen.getByText("gsd-gui")).toBeInTheDocument();
+    });
+
+    // Click the project card
+    const card = container.querySelector("[class*='cursor-pointer']");
+    expect(card).not.toBeNull();
+    await userEvent.click(card!);
+
+    // Verify project was selected in the store
+    expect(useProjectStore.getState().activeProject?.id).toBe("p1");
   });
 });

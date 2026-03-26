@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { FolderKanban, FolderOpen, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ export function ProjectGallery() {
   const addProject = useProjectStore((s) => s.addProject);
   const removeProject = useProjectStore((s) => s.removeProject);
   const selectProject = useProjectStore((s) => s.selectProject);
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
 
@@ -121,7 +123,10 @@ export function ProjectGallery() {
           <ProjectCard
             key={project.id}
             project={project}
-            onClick={() => selectProject(project)}
+            onClick={() => {
+              selectProject(project);
+              navigate("/milestones");
+            }}
             onRemove={() => removeProject(project.id)}
           />
         ))}

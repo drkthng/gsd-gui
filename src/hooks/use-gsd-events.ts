@@ -18,6 +18,7 @@ export function useGsdEvents() {
 
   useEffect(() => {
     const unlisteners: (() => void)[] = [];
+    let cancelled = false;
 
     async function subscribe() {
       // GSD stdout events — parse JSONL and route to store
@@ -29,30 +30,35 @@ export function useGsdEvents() {
           // Ignore non-JSON lines (e.g. stderr leakage)
         }
       });
+      if (cancelled) { unGsdEvent(); return; }
       unlisteners.push(unGsdEvent);
 
       // Process exit
       const unExit = await client.onProcessExit((payload: GsdExitPayload) => {
         useGsdStore.getState().handleProcessExit(payload);
       });
+      if (cancelled) { unExit(); unlisteners.forEach((fn) => fn()); return; }
       unlisteners.push(unExit);
 
       // Process error
       const unError = await client.onProcessError((payload: GsdErrorPayload) => {
         useGsdStore.getState().handleProcessError(payload);
       });
+      if (cancelled) { unError(); unlisteners.forEach((fn) => fn()); return; }
       unlisteners.push(unError);
 
       // File changes — invalidate query cache so useGsdState refetches
       const unFileChanged = await client.onFileChanged((_payload: GsdFileChangedPayload) => {
         queryClient.invalidateQueries({ queryKey: ["gsd-state"] });
       });
+      if (cancelled) { unFileChanged(); unlisteners.forEach((fn) => fn()); return; }
       unlisteners.push(unFileChanged);
     }
 
     subscribe();
 
     return () => {
+      cancelled = true;
       unlisteners.forEach((fn) => fn());
     };
   }, [queryClient]);
