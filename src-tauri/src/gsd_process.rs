@@ -1,8 +1,9 @@
 use std::path::Path;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::{Child, Command};
+use tokio::process::Child;
 use tokio::sync::mpsc;
 
+use crate::gsd_resolve::build_gsd_command;
 use crate::gsd_rpc::{serialize_command, JsonlFramer, RpcCommand};
 
 // Tauri v2 requires Emitter trait for .emit() on AppHandle
@@ -61,12 +62,8 @@ impl GsdProcess {
         project_path: &str,
         app_handle: tauri::AppHandle,
     ) -> Result<Self, String> {
-        let mut cmd = Command::new(binary_path);
-        cmd.arg("--mode")
-            .arg("rpc")
-            .arg("--project")
-            .arg(project_path)
-            .stdin(std::process::Stdio::piped())
+        let mut cmd = build_gsd_command(binary_path, project_path);
+        cmd.stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true);

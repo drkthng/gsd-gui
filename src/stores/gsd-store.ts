@@ -18,9 +18,12 @@ export interface GsdMessage {
 }
 
 export interface PendingUIRequest {
-  request_id: string;
-  kind: string;
-  payload: unknown;
+  id: string;
+  method: string;
+  message?: string;
+  notifyType?: string;
+  statusKey?: string;
+  payload?: unknown;
 }
 
 interface GsdState {
@@ -30,16 +33,24 @@ interface GsdState {
   pendingUIRequests: PendingUIRequest[];
   error: string | null;
   activeProjectPath: string | null;
+  backendReady: boolean;
+  autoMode: boolean;
 
   // Actions
   connect: (projectPath: string) => Promise<void>;
   disconnect: () => Promise<void>;
+  reconnect: () => Promise<void>;
   sendPrompt: (text: string) => Promise<void>;
+  startAuto: () => Promise<void>;
+  stopAuto: () => Promise<void>;
+  nextStep: () => Promise<void>;
+  steerExecution: (text: string) => Promise<void>;
   handleGsdEvent: (event: RpcEvent) => void;
   handleProcessExit: (payload: GsdExitPayload) => void;
   handleProcessError: (payload: GsdErrorPayload) => void;
   respondToUIRequest: (requestId: string, response: unknown) => Promise<void>;
   clearMessages: () => void;
+  clearError: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,6 +66,8 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
   pendingUIRequests: [],
   error: null,
   activeProjectPath: null,
+  backendReady: false,
+  autoMode: false,
 
   connect: async (projectPath: string) => {
     set({ sessionState: "connecting", activeProjectPath: projectPath, error: null });
@@ -82,12 +95,48 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
     });
   },
 
+  reconnect: async () => {
+    const { activeProjectPath, connect } = get();
+    if (!activeProjectPath) {
+      set({ error: "No project path to reconnect to" });
+      return;
+    }
+    await connect(activeProjectPath);
+  },
+
   sendPrompt: async (text: string) => {
     const { sessionState } = get();
     if (sessionState !== "connected" && sessionState !== "streaming") return;
     const msg: GsdMessage = { role: "user", content: text, timestamp: Date.now() };
     set((s) => ({ messages: [...s.messages, msg] }));
     await client.sendCommand({ type: "prompt", text });
+  },
+
+  startAuto: async () => {
+    const { sessionState } = get();
+    if (sessionState !== "connected" && sessionState !== "streaming") return;
+    const msg: GsdMessage = { role: "user", content: "/gsd auto", timestamp: Date.now() };
+    set((s) => ({ messages: [...s.messages, msg], autoMode: true }));
+    await client.sendCommand({ type: "prompt", text: "/gsd auto" });
+  },
+
+  stopAuto: async () => {
+    set({ autoMode: false, isStreaming: false });
+    await client.sendCommand({ type: "abort" });
+  },
+
+  nextStep: async () => {
+    const { sessionState } = get();
+    if (sessionState !== "connected" && sessionState !== "streaming") return;
+    const msg: GsdMessage = { role: "user", content: "/gsd next", timestamp: Date.now() };
+    set((s) => ({ messages: [...s.messages, msg] }));
+    await client.sendCommand({ type: "prompt", text: "/gsd next" });
+  },
+
+  steerExecution: async (text: string) => {
+    const { sessionState } = get();
+    if (sessionState !== "streaming") return;
+    await client.sendCommand({ type: "steer", text });
   },
 
   handleGsdEvent: (event: RpcEvent) => {
@@ -97,7 +146,7 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
         break;
 
       case "agent_end":
-        set({ isStreaming: false, sessionState: "connected" });
+        set({ isStreaming: false, sessionState: "connected", autoMode: false });
         break;
 
       case "assistant_message": {
@@ -123,7 +172,7 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
         set((s) => ({
           pendingUIRequests: [
             ...s.pendingUIRequests,
-            { request_id: event.request_id, kind: event.kind, payload: event.payload },
+            { id: event.id, method: event.method, message: event.message, notifyType: event.notifyType, statusKey: event.statusKey, payload: event.payload },
           ],
         }));
         break;
@@ -131,6 +180,17 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
       case "error":
         set({ error: event.message });
         break;
+
+      case "extensions_ready":
+        set({ backendReady: true });
+        break;
+
+      case "response": {
+        if (!event.success) {
+          set({ error: event.error ?? `Command ${event.command} failed` });
+        }
+        break;
+      }
 
       // tool_execution_start, tool_execution_end, session_state_changed
       // are informational — could be handled by future UI components
@@ -140,16 +200,16 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
   },
 
   handleProcessExit: (_payload: GsdExitPayload) => {
-    set({ sessionState: "disconnected", isStreaming: false });
+    set({ sessionState: "disconnected", isStreaming: false, backendReady: false, autoMode: false });
   },
 
   handleProcessError: (payload: GsdErrorPayload) => {
-    set({ sessionState: "error", error: payload.message, isStreaming: false });
+    set({ sessionState: "error", error: payload.message, isStreaming: false, backendReady: false, autoMode: false });
   },
 
   respondToUIRequest: async (requestId: string, response: unknown) => {
     set((s) => ({
-      pendingUIRequests: s.pendingUIRequests.filter((r) => r.request_id !== requestId),
+      pendingUIRequests: s.pendingUIRequests.filter((r) => r.id !== requestId),
     }));
     // Send response back via RPC — the exact command shape depends on GSD's protocol
     // For now, use a generic command. This will be refined when M003 implements UI request rendering.
@@ -160,4 +220,6 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
   },
 
   clearMessages: () => set({ messages: [] }),
+
+  clearError: () => set({ error: null }),
 }));

@@ -34,13 +34,25 @@ export type RpcEvent =
   | { type: "tool_execution_start"; tool: string; id: string }
   | { type: "tool_execution_end"; tool: string; id: string; success: boolean }
   | {
+      type: "response";
+      command: string;
+      success: boolean;
+      data?: unknown;
+      error?: string;
+    }
+  | { type: "extensions_ready" }
+  | {
       type: "extension_ui_request";
-      request_id: string;
-      kind: string;
-      payload: unknown;
+      id: string;
+      method: string;
+      message?: string;
+      notifyType?: string;
+      statusKey?: string;
+      payload?: unknown;
     }
   | { type: "session_state_changed"; payload: unknown }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: string; [key: string]: unknown };
 
 // ---------------------------------------------------------------------------
 // Query types

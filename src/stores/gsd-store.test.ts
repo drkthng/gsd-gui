@@ -34,6 +34,8 @@ describe("gsd-store", () => {
       pendingUIRequests: [],
       error: null,
       activeProjectPath: null,
+      backendReady: false,
+      autoMode: false,
     });
   });
 
@@ -132,18 +134,57 @@ describe("gsd-store", () => {
       const { handleGsdEvent } = useGsdStore.getState();
       handleGsdEvent({
         type: "extension_ui_request",
-        request_id: "r1",
-        kind: "select",
+        id: "r1",
+        method: "select",
         payload: { options: ["a", "b"] },
       });
       expect(useGsdStore.getState().pendingUIRequests).toHaveLength(1);
-      expect(useGsdStore.getState().pendingUIRequests[0].request_id).toBe("r1");
+      expect(useGsdStore.getState().pendingUIRequests[0].id).toBe("r1");
     });
 
     it("handles error event", () => {
       const { handleGsdEvent } = useGsdStore.getState();
       handleGsdEvent({ type: "error", message: "rate limit" });
       expect(useGsdStore.getState().error).toBe("rate limit");
+    });
+
+    it("handles extensions_ready by setting backendReady to true", () => {
+      expect(useGsdStore.getState().backendReady).toBe(false);
+      const { handleGsdEvent } = useGsdStore.getState();
+      handleGsdEvent({ type: "extensions_ready" });
+      expect(useGsdStore.getState().backendReady).toBe(true);
+    });
+
+    it("handles response with success=true without setting error", () => {
+      const { handleGsdEvent } = useGsdStore.getState();
+      handleGsdEvent({
+        type: "response",
+        command: "get_state",
+        success: true,
+        data: { currentMilestone: "M001" },
+      });
+      expect(useGsdStore.getState().error).toBeNull();
+    });
+
+    it("handles response with success=false by setting error", () => {
+      const { handleGsdEvent } = useGsdStore.getState();
+      handleGsdEvent({
+        type: "response",
+        command: "set_model",
+        success: false,
+        error: "Model not available",
+      });
+      expect(useGsdStore.getState().error).toBe("Model not available");
+    });
+
+    it("handles response with success=false and no error field gracefully", () => {
+      const { handleGsdEvent } = useGsdStore.getState();
+      handleGsdEvent({
+        type: "response",
+        command: "set_model",
+        success: false,
+      });
+      expect(useGsdStore.getState().error).toBe("Command set_model failed");
     });
   });
 
@@ -155,6 +196,13 @@ describe("gsd-store", () => {
       expect(useGsdStore.getState().sessionState).toBe("disconnected");
       expect(useGsdStore.getState().isStreaming).toBe(false);
     });
+
+    it("resets backendReady to false", () => {
+      useGsdStore.setState({ sessionState: "connected", backendReady: true });
+      const { handleProcessExit } = useGsdStore.getState();
+      handleProcessExit({ code: 1, timestamp: Date.now() });
+      expect(useGsdStore.getState().backendReady).toBe(false);
+    });
   });
 
   describe("handleProcessError", () => {
@@ -165,6 +213,40 @@ describe("gsd-store", () => {
       expect(useGsdStore.getState().sessionState).toBe("error");
       expect(useGsdStore.getState().error).toBe("pipe broken");
     });
+
+    it("resets backendReady to false", () => {
+      useGsdStore.setState({ sessionState: "connected", backendReady: true });
+      const { handleProcessError } = useGsdStore.getState();
+      handleProcessError({ message: "crash", timestamp: Date.now() });
+      expect(useGsdStore.getState().backendReady).toBe(false);
+    });
+  });
+
+  describe("reconnect", () => {
+    it("calls connect with activeProjectPath when set", async () => {
+      useGsdStore.setState({ sessionState: "disconnected", activeProjectPath: "/my/project" });
+      const { reconnect } = useGsdStore.getState();
+      await reconnect();
+      expect(mockClient.startSession).toHaveBeenCalledWith("/my/project");
+      expect(useGsdStore.getState().sessionState).toBe("connected");
+    });
+
+    it("sets error when no activeProjectPath is set", async () => {
+      useGsdStore.setState({ sessionState: "disconnected", activeProjectPath: null });
+      const { reconnect } = useGsdStore.getState();
+      await reconnect();
+      expect(mockClient.startSession).not.toHaveBeenCalled();
+      expect(useGsdStore.getState().error).toBe("No project path to reconnect to");
+    });
+  });
+
+  describe("clearError", () => {
+    it("sets error to null", () => {
+      useGsdStore.setState({ error: "something broke" });
+      const { clearError } = useGsdStore.getState();
+      clearError();
+      expect(useGsdStore.getState().error).toBeNull();
+    });
   });
 
   describe("respondToUIRequest", () => {
@@ -172,14 +254,91 @@ describe("gsd-store", () => {
       useGsdStore.setState({
         sessionState: "connected",
         pendingUIRequests: [
-          { request_id: "r1", kind: "select", payload: {} },
-          { request_id: "r2", kind: "confirm", payload: {} },
+          { id: "r1", method: "select", payload: {} },
+          { id: "r2", method: "confirm", payload: {} },
         ],
       });
       const { respondToUIRequest } = useGsdStore.getState();
       await respondToUIRequest("r1", "option_a");
       expect(useGsdStore.getState().pendingUIRequests).toHaveLength(1);
-      expect(useGsdStore.getState().pendingUIRequests[0].request_id).toBe("r2");
+      expect(useGsdStore.getState().pendingUIRequests[0].id).toBe("r2");
+    });
+  });
+
+  describe("auto-mode actions", () => {
+    it("startAuto sends /gsd auto prompt and sets autoMode true", async () => {
+      useGsdStore.setState({ sessionState: "connected" });
+      const { startAuto } = useGsdStore.getState();
+      await startAuto();
+      expect(mockClient.sendCommand).toHaveBeenCalledWith({
+        type: "prompt",
+        text: "/gsd auto",
+      });
+      expect(useGsdStore.getState().autoMode).toBe(true);
+    });
+
+    it("stopAuto sends abort command and sets autoMode false", async () => {
+      useGsdStore.setState({
+        sessionState: "streaming",
+        isStreaming: true,
+        autoMode: true,
+      });
+      const { stopAuto } = useGsdStore.getState();
+      await stopAuto();
+      expect(mockClient.sendCommand).toHaveBeenCalledWith({ type: "abort" });
+      expect(useGsdStore.getState().autoMode).toBe(false);
+      expect(useGsdStore.getState().isStreaming).toBe(false);
+    });
+
+    it("nextStep sends /gsd next prompt", async () => {
+      useGsdStore.setState({ sessionState: "connected" });
+      const { nextStep } = useGsdStore.getState();
+      await nextStep();
+      expect(mockClient.sendCommand).toHaveBeenCalledWith({
+        type: "prompt",
+        text: "/gsd next",
+      });
+    });
+
+    it("steerExecution sends steer command with text", async () => {
+      useGsdStore.setState({ sessionState: "streaming", isStreaming: true });
+      const { steerExecution } = useGsdStore.getState();
+      await steerExecution("focus on tests");
+      expect(mockClient.sendCommand).toHaveBeenCalledWith({
+        type: "steer",
+        text: "focus on tests",
+      });
+    });
+
+    it("agent_end resets autoMode to false", () => {
+      useGsdStore.setState({
+        isStreaming: true,
+        sessionState: "streaming",
+        autoMode: true,
+      });
+      const { handleGsdEvent } = useGsdStore.getState();
+      handleGsdEvent({ type: "agent_end", session_id: "s1" });
+      expect(useGsdStore.getState().autoMode).toBe(false);
+    });
+
+    it("handleProcessExit resets autoMode to false", () => {
+      useGsdStore.setState({
+        sessionState: "connected",
+        autoMode: true,
+      });
+      const { handleProcessExit } = useGsdStore.getState();
+      handleProcessExit({ code: 0, timestamp: Date.now() });
+      expect(useGsdStore.getState().autoMode).toBe(false);
+    });
+
+    it("handleProcessError resets autoMode to false", () => {
+      useGsdStore.setState({
+        sessionState: "connected",
+        autoMode: true,
+      });
+      const { handleProcessError } = useGsdStore.getState();
+      handleProcessError({ message: "crash", timestamp: Date.now() });
+      expect(useGsdStore.getState().autoMode).toBe(false);
     });
   });
 

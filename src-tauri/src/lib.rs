@@ -1,8 +1,8 @@
 mod gsd_parser;
 mod gsd_process;
 mod gsd_query;
-mod gsd_resolve;
-mod gsd_rpc;
+pub mod gsd_resolve;
+pub mod gsd_rpc;
 mod gsd_watcher;
 mod project_registry;
 

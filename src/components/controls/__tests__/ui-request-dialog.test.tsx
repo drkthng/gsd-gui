@@ -42,8 +42,8 @@ describe("UIRequestDialog", () => {
   it("renders confirm dialog with yes/no buttons", () => {
     useGsdStore.setState({
       pendingUIRequests: [{
-        request_id: "r1",
-        kind: "confirm",
+        id: "r1",
+        method: "confirm",
         payload: { message: "Proceed with auto mode?" },
       }],
     });
@@ -56,8 +56,8 @@ describe("UIRequestDialog", () => {
   it("renders select dialog with options", () => {
     useGsdStore.setState({
       pendingUIRequests: [{
-        request_id: "r2",
-        kind: "select",
+        id: "r2",
+        method: "select",
         payload: { message: "Choose a model:", options: [{ label: "Claude Sonnet" }, { label: "GPT-4o" }] },
       }],
     });
@@ -70,8 +70,8 @@ describe("UIRequestDialog", () => {
   it("removes request from queue after responding to confirm", async () => {
     useGsdStore.setState({
       pendingUIRequests: [{
-        request_id: "r1",
-        kind: "confirm",
+        id: "r1",
+        method: "confirm",
         payload: { message: "Continue?" },
       }],
     });

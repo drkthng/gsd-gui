@@ -25,18 +25,43 @@ pub enum RpcCommand {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RpcEvent {
+    // -- Streaming events (during prompt execution) --
     AgentStart { session_id: String },
     AgentEnd { session_id: String },
     AssistantMessage { content: String, done: bool },
     ToolExecutionStart { tool: String, id: String },
     ToolExecutionEnd { tool: String, id: String, success: bool },
-    ExtensionUiRequest {
-        request_id: String,
-        kind: String,
-        payload: serde_json::Value,
+
+    // -- Response envelope (reply to any RpcCommand) --
+    Response {
+        command: String,
+        success: bool,
+        data: Option<serde_json::Value>,
+        error: Option<String>,
     },
+
+    // -- Extension lifecycle --
+    ExtensionsReady {},
+
+    // -- Extension UI requests (variable fields by method) --
+    ExtensionUiRequest {
+        id: String,
+        method: String,
+        message: Option<String>,
+        #[serde(rename = "notifyType")]
+        notify_type: Option<String>,
+        #[serde(rename = "statusKey")]
+        status_key: Option<String>,
+        payload: Option<serde_json::Value>,
+    },
+
+    // -- State & error --
     SessionStateChanged { payload: serde_json::Value },
     Error { message: String },
+
+    // -- Catch-all for unknown event types --
+    #[serde(other)]
+    Unknown,
 }
 
 // ---------------------------------------------------------------------------
@@ -190,6 +215,120 @@ mod tests {
                 success: true,
             }
         );
+    }
+
+    // -- Response envelope parsing --
+
+    #[test]
+    fn test_parse_response_success() {
+        let line = r#"{"type":"response","command":"get_state","success":true,"data":{"model":{"id":"claude-opus-4-6"}}}"#;
+        let evt = parse_event(line).unwrap();
+        match evt {
+            RpcEvent::Response {
+                command,
+                success,
+                data,
+                error,
+            } => {
+                assert_eq!(command, "get_state");
+                assert!(success);
+                assert!(data.is_some());
+                assert!(error.is_none());
+                let data = data.unwrap();
+                assert_eq!(data["model"]["id"], "claude-opus-4-6");
+            }
+            other => panic!("expected Response, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_response_error() {
+        let line = r#"{"type":"response","command":"prompt","success":false,"error":"Cannot read properties of undefined"}"#;
+        let evt = parse_event(line).unwrap();
+        match evt {
+            RpcEvent::Response {
+                command,
+                success,
+                data,
+                error,
+            } => {
+                assert_eq!(command, "prompt");
+                assert!(!success);
+                assert!(data.is_none());
+                assert_eq!(error.as_deref(), Some("Cannot read properties of undefined"));
+            }
+            other => panic!("expected Response, got {:?}", other),
+        }
+    }
+
+    // -- Extensions ready --
+
+    #[test]
+    fn test_parse_extensions_ready() {
+        let line = r#"{"type":"extensions_ready"}"#;
+        let evt = parse_event(line).unwrap();
+        assert_eq!(evt, RpcEvent::ExtensionsReady {});
+    }
+
+    // -- Extension UI request (notify method) --
+
+    #[test]
+    fn test_parse_extension_ui_request_notify() {
+        let line = r#"{"type":"extension_ui_request","id":"550e8400-e29b-41d4-a716-446655440000","method":"notify","message":"Build complete","notifyType":"warning"}"#;
+        let evt = parse_event(line).unwrap();
+        match evt {
+            RpcEvent::ExtensionUiRequest {
+                id,
+                method,
+                message,
+                notify_type,
+                status_key,
+                payload,
+            } => {
+                assert_eq!(id, "550e8400-e29b-41d4-a716-446655440000");
+                assert_eq!(method, "notify");
+                assert_eq!(message.as_deref(), Some("Build complete"));
+                assert_eq!(notify_type.as_deref(), Some("warning"));
+                assert!(status_key.is_none());
+                assert!(payload.is_none());
+            }
+            other => panic!("expected ExtensionUiRequest, got {:?}", other),
+        }
+    }
+
+    // -- Extension UI request (setStatus method) --
+
+    #[test]
+    fn test_parse_extension_ui_request_set_status() {
+        let line = r#"{"type":"extension_ui_request","id":"a1b2c3","method":"setStatus","statusKey":"gsd-fast"}"#;
+        let evt = parse_event(line).unwrap();
+        match evt {
+            RpcEvent::ExtensionUiRequest {
+                id,
+                method,
+                message,
+                notify_type,
+                status_key,
+                payload,
+            } => {
+                assert_eq!(id, "a1b2c3");
+                assert_eq!(method, "setStatus");
+                assert!(message.is_none());
+                assert!(notify_type.is_none());
+                assert_eq!(status_key.as_deref(), Some("gsd-fast"));
+                assert!(payload.is_none());
+            }
+            other => panic!("expected ExtensionUiRequest, got {:?}", other),
+        }
+    }
+
+    // -- Unknown event type catch-all --
+
+    #[test]
+    fn test_parse_unknown_event_type() {
+        let line = r#"{"type":"some_future_event","data":123}"#;
+        let evt = parse_event(line).unwrap();
+        assert_eq!(evt, RpcEvent::Unknown);
     }
 
     // -- JSONL framer --
