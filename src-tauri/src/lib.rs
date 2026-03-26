@@ -1,3 +1,4 @@
+mod gsd_parser;
 mod gsd_process;
 mod gsd_query;
 mod gsd_resolve;
@@ -193,6 +194,16 @@ async fn remove_project(
     project_registry::remove_project(&app, &project_id)
 }
 
+/// Parse all milestones/slices/tasks from a project's `.gsd/` directory.
+/// Returns a structured tree matching the frontend `MilestoneInfo[]` type.
+#[tauri::command]
+async fn parse_project_milestones_cmd(
+    project_path: String,
+) -> Result<Vec<gsd_parser::MilestoneInfo>, String> {
+    let path = std::path::Path::new(&project_path);
+    gsd_parser::parse_project_milestones(path)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -208,7 +219,8 @@ pub fn run() {
             stop_file_watcher,
             get_saved_projects,
             add_project,
-            remove_project
+            remove_project,
+            parse_project_milestones_cmd
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

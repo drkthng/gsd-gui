@@ -61,15 +61,24 @@ impl GsdProcess {
         project_path: &str,
         app_handle: tauri::AppHandle,
     ) -> Result<Self, String> {
-        let mut child = Command::new(binary_path)
-            .arg("--mode")
+        let mut cmd = Command::new(binary_path);
+        cmd.arg("--mode")
             .arg("rpc")
             .arg("--project")
             .arg(project_path)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
-            .kill_on_drop(true)
+            .kill_on_drop(true);
+
+        // On Windows, prevent a console window from appearing
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
+
+        let mut child = cmd
             .spawn()
             .map_err(|e| {
                 let msg = format!(

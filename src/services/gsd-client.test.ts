@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { setupTauriMocks } from "@/test/tauri-mock";
 import { createGsdClient } from "@/services/gsd-client";
 import type { GsdClient } from "@/services/gsd-client";
-import type { RpcCommand, QuerySnapshot, ProjectInfo, SavedProject } from "@/lib/types";
+import type { RpcCommand, QuerySnapshot, ProjectInfo, SavedProject, MilestoneInfo } from "@/lib/types";
 
 // vi.mock calls are hoisted — setupTauriMocks uses vi.hoisted() internally
 const { mockInvoke, mockListen } = setupTauriMocks();
@@ -24,6 +24,7 @@ describe("gsd-client", () => {
     expect(typeof client.listProjects).toBe("function");
     expect(typeof client.startFileWatcher).toBe("function");
     expect(typeof client.stopFileWatcher).toBe("function");
+    expect(typeof client.parseProjectMilestones).toBe("function");
     expect(typeof client.onGsdEvent).toBe("function");
     expect(typeof client.onProcessExit).toBe("function");
     expect(typeof client.onProcessError).toBe("function");
@@ -98,6 +99,46 @@ describe("gsd-client", () => {
     const client = createGsdClient();
     await client.stopFileWatcher();
     expect(mockInvoke).toHaveBeenCalledWith("stop_file_watcher");
+  });
+
+  // ---- GSD parser commands ----
+
+  it("parseProjectMilestones() calls invoke with correct command and project path", async () => {
+    const client = createGsdClient();
+    await client.parseProjectMilestones("/projects/my-app");
+    expect(mockInvoke).toHaveBeenCalledWith("parse_project_milestones", {
+      projectPath: "/projects/my-app",
+    });
+  });
+
+  it("parseProjectMilestones() returns MilestoneInfo[]", async () => {
+    const milestones: MilestoneInfo[] = [
+      {
+        id: "M001",
+        title: "App Shell",
+        status: "done",
+        cost: 5.0,
+        progress: 100,
+        slices: [
+          {
+            id: "S01",
+            title: "Foundation",
+            status: "done",
+            risk: "low",
+            cost: 2.0,
+            progress: 100,
+            tasks: [
+              { id: "T01", title: "Setup", status: "done", cost: 1.0, duration: "2h" },
+            ],
+            depends: [],
+          },
+        ],
+      },
+    ];
+    mockInvoke.mockResolvedValue(milestones);
+    const client = createGsdClient();
+    const result = await client.parseProjectMilestones("/projects/my-app");
+    expect(result).toEqual(milestones);
   });
 
   // ---- project registry commands ----

@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { renderWithProviders, screen } from "@/test/test-utils";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { renderWithProviders, screen, userEvent, within } from "@/test/test-utils";
 import { ChatPage } from "@/pages/chat-page";
 import { ProjectsPage } from "@/pages/projects-page";
 import { MilestonesPage } from "@/pages/milestones-page";
@@ -7,6 +7,11 @@ import { TimelinePage } from "@/pages/timeline-page";
 import { CostsPage } from "@/pages/costs-page";
 import { SettingsPage } from "@/pages/settings-page";
 import { HelpPage } from "@/pages/help-page";
+import { mockMilestones, mockCostData } from "@/test/mock-data";
+
+// ---------------------------------------------------------------------------
+// Module mocks — hoisted by vitest
+// ---------------------------------------------------------------------------
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: vi.fn(),
@@ -26,9 +31,59 @@ vi.mock("@/services/gsd-client", () => ({
   }),
 }));
 
-// The pages test checks for synchronous content. The ProjectGallery now auto-loads
-// on mount via useEffect, which briefly shows loading state. The mock getSavedProjects
-// resolves immediately so the empty state renders.
+const mockUseMilestoneData = vi.fn();
+vi.mock("@/hooks/use-milestone-data", () => ({
+  useMilestoneData: (...args: unknown[]) => mockUseMilestoneData(...args),
+}));
+
+const mockUseProjectStore = vi.fn();
+vi.mock("@/stores/project-store", () => ({
+  useProjectStore: (...args: unknown[]) => mockUseProjectStore(...args),
+}));
+
+// ---------------------------------------------------------------------------
+// Default mock return values — active project with data loaded
+// ---------------------------------------------------------------------------
+
+const defaultMilestoneData = {
+  milestones: mockMilestones,
+  costData: mockCostData,
+  isLoading: false,
+  error: null,
+  refetch: vi.fn(),
+};
+
+const fakeActiveProject = {
+  id: "test-project",
+  name: "Test Project",
+  path: "/test/project",
+  description: null,
+  addedAt: "2026-01-01T00:00:00Z",
+};
+
+const defaultProjectState = {
+  activeProject: fakeActiveProject,
+  projects: [] as typeof fakeActiveProject[],
+  isLoading: false,
+  error: null,
+  loadProjects: vi.fn(),
+  addProject: vi.fn(),
+  removeProject: vi.fn(),
+  selectProject: vi.fn(),
+  clearError: vi.fn(),
+};
+
+beforeEach(() => {
+  mockUseMilestoneData.mockReturnValue(defaultMilestoneData);
+  // useProjectStore is called with a selector — invoke it on the full state object
+  mockUseProjectStore.mockImplementation((selector: (s: unknown) => unknown) => {
+    return selector(defaultProjectState);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Page definitions
+// ---------------------------------------------------------------------------
 
 interface PageDef {
   name: string;
@@ -84,6 +139,10 @@ const pages: PageDef[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Existing test suites (28 tests preserved)
+// ---------------------------------------------------------------------------
+
 describe("Page components", () => {
   for (const { name, Component } of pages) {
     it(`${name}Page renders a heading with "${name}"`, () => {
@@ -120,4 +179,183 @@ describe("Page components", () => {
       }
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// New: data-driven pages — no project selected, loading, and error states
+// ---------------------------------------------------------------------------
+
+const dataPages = [
+  { name: "Milestones", Component: MilestonesPage },
+  { name: "Timeline", Component: TimelinePage },
+  { name: "Costs", Component: CostsPage },
+] as const;
+
+describe("Data-driven pages — no project selected", () => {
+  beforeEach(() => {
+    mockUseProjectStore.mockImplementation((selector: (s: unknown) => unknown) => {
+      const state = { activeProject: null, projects: [], isLoading: false, error: null };
+      return selector(state);
+    });
+    mockUseMilestoneData.mockReturnValue({
+      milestones: [],
+      costData: { totalCost: 0, budgetCeiling: null, byPhase: [], byModel: [], bySlice: [] },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+  });
+
+  for (const { name, Component } of dataPages) {
+    it(`${name}Page shows empty state when no project selected`, () => {
+      renderWithProviders(<Component />);
+      expect(screen.getByText(/no project selected/i)).toBeInTheDocument();
+      expect(screen.getByText(/select a project/i)).toBeInTheDocument();
+    });
+  }
+});
+
+describe("Data-driven pages — loading state", () => {
+  beforeEach(() => {
+    mockUseMilestoneData.mockReturnValue({
+      milestones: [],
+      costData: { totalCost: 0, budgetCeiling: null, byPhase: [], byModel: [], bySlice: [] },
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    });
+  });
+
+  for (const { name, Component } of dataPages) {
+    it(`${name}Page shows loading state`, () => {
+      renderWithProviders(<Component />);
+      expect(screen.getByRole("status")).toBeInTheDocument();
+      expect(screen.getByText(/loading/i)).toBeInTheDocument();
+    });
+  }
+});
+
+describe("Data-driven pages — error state", () => {
+  beforeEach(() => {
+    mockUseMilestoneData.mockReturnValue({
+      milestones: [],
+      costData: { totalCost: 0, budgetCeiling: null, byPhase: [], byModel: [], bySlice: [] },
+      isLoading: false,
+      error: "IPC connection failed",
+      refetch: vi.fn(),
+    });
+  });
+
+  for (const { name, Component } of dataPages) {
+    it(`${name}Page shows error message`, () => {
+      renderWithProviders(<Component />);
+      expect(screen.getByText(/IPC connection failed/i)).toBeInTheDocument();
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Milestones page — filter integration
+// ---------------------------------------------------------------------------
+
+describe("MilestonesPage — filter integration", () => {
+  // Default mocks give us mockMilestones: M001 (done) + M002 (in-progress)
+
+  /** Helper: get the FilterBar container scoped to the role="group" element. */
+  function getFilterBar() {
+    return within(screen.getByRole("group", { name: /filter milestones/i }));
+  }
+
+  it("renders the filter bar when milestones are loaded", () => {
+    renderWithProviders(<MilestonesPage />);
+    const filterBar = getFilterBar();
+    // All filter buttons present inside the filter bar
+    expect(filterBar.getByRole("button", { name: /^All/i })).toBeInTheDocument();
+    expect(filterBar.getByRole("button", { name: /^Active/i })).toBeInTheDocument();
+    expect(filterBar.getByRole("button", { name: /^Complete/i })).toBeInTheDocument();
+    expect(filterBar.getByRole("button", { name: /^Planned/i })).toBeInTheDocument();
+  });
+
+  it("shows grouped milestones with Active and Complete headers", () => {
+    renderWithProviders(<MilestonesPage />);
+    // Group headers from the grouped list
+    const activeHeaders = screen.getAllByText("Active");
+    expect(activeHeaders.length).toBeGreaterThanOrEqual(1);
+    const completeHeaders = screen.getAllByText("Complete");
+    expect(completeHeaders.length).toBeGreaterThanOrEqual(1);
+    // Both milestones visible
+    expect(screen.getByText(/M001/)).toBeInTheDocument();
+    expect(screen.getByText(/M002/)).toBeInTheDocument();
+  });
+
+  it("clicking Active filter hides completed milestones", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MilestonesPage />);
+    const filterBar = getFilterBar();
+
+    // Click the Active filter button inside the filter bar
+    await user.click(filterBar.getByRole("button", { name: /^Active/i }));
+
+    // M002 (in-progress) should be visible, M001 (done) should not
+    expect(screen.getByText(/M002/)).toBeInTheDocument();
+    expect(screen.queryByText(/M001/)).not.toBeInTheDocument();
+  });
+
+  it("clicking Complete filter hides active milestones", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MilestonesPage />);
+    const filterBar = getFilterBar();
+
+    await user.click(filterBar.getByRole("button", { name: /^Complete/i }));
+
+    expect(screen.getByText(/M001/)).toBeInTheDocument();
+    expect(screen.queryByText(/M002/)).not.toBeInTheDocument();
+  });
+
+  it("clicking All filter shows all milestones again", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MilestonesPage />);
+    const filterBar = getFilterBar();
+
+    // Filter to Active, then back to All
+    await user.click(filterBar.getByRole("button", { name: /^Active/i }));
+    expect(screen.queryByText(/M001/)).not.toBeInTheDocument();
+
+    await user.click(filterBar.getByRole("button", { name: /^All/i }));
+    expect(screen.getByText(/M001/)).toBeInTheDocument();
+    expect(screen.getByText(/M002/)).toBeInTheDocument();
+  });
+
+  it("does not render filter bar when no project is selected", () => {
+    mockUseProjectStore.mockImplementation((selector: (s: unknown) => unknown) => {
+      return selector({ activeProject: null, projects: [], isLoading: false, error: null });
+    });
+    mockUseMilestoneData.mockReturnValue({
+      milestones: [],
+      costData: { totalCost: 0, budgetCeiling: null, byPhase: [], byModel: [], bySlice: [] },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderWithProviders(<MilestonesPage />);
+    expect(
+      screen.queryByRole("group", { name: /filter milestones/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not render filter bar in loading state", () => {
+    mockUseMilestoneData.mockReturnValue({
+      milestones: [],
+      costData: { totalCost: 0, budgetCeiling: null, byPhase: [], byModel: [], bySlice: [] },
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderWithProviders(<MilestonesPage />);
+    expect(
+      screen.queryByRole("group", { name: /filter milestones/i }),
+    ).not.toBeInTheDocument();
+  });
 });

@@ -9,6 +9,7 @@ import type {
   QuerySnapshot,
   ProjectInfo,
   SavedProject,
+  MilestoneInfo,
   GsdEventPayload,
   GsdExitPayload,
   GsdErrorPayload,
@@ -21,6 +22,7 @@ export type {
   QuerySnapshot,
   ProjectInfo,
   SavedProject,
+  MilestoneInfo,
   GsdEventPayload,
   GsdExitPayload,
   GsdErrorPayload,
@@ -40,6 +42,8 @@ export interface GsdClient {
   listProjects: (scanPath: string) => Promise<ProjectInfo[]>;
   startFileWatcher: (projectPath: string) => Promise<void>;
   stopFileWatcher: () => Promise<void>;
+  // GSD parser
+  parseProjectMilestones: (projectPath: string) => Promise<MilestoneInfo[]>;
   // Project registry
   getSavedProjects: () => Promise<SavedProject[]>;
   addProject: (projectPath: string, description?: string) => Promise<SavedProject>;
@@ -84,6 +88,10 @@ export function createGsdClient(): GsdClient {
       invoke("start_file_watcher", { projectPath }),
 
     stopFileWatcher: () => invoke("stop_file_watcher"),
+
+    // ---- GSD parser ----
+    parseProjectMilestones: (projectPath: string) =>
+      invoke<MilestoneInfo[]>("parse_project_milestones", { projectPath }),
 
     // ---- project registry ----
     getSavedProjects: () =>

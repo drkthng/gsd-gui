@@ -37,10 +37,20 @@ pub struct ProjectInfo {
 pub async fn run_headless_query(project_path: &str) -> Result<QuerySnapshot, String> {
     let binary = resolve_gsd_binary()?;
 
-    let output = tokio::process::Command::new(&binary)
-        .args(["headless", "query", "--project", project_path, "--format", "json"])
+    let mut cmd = tokio::process::Command::new(&binary);
+    cmd.args(["headless", "query", "--project", project_path, "--format", "json"])
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    // On Windows, prevent a console window from flashing
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
+    let output = cmd
         .output()
         .await
         .map_err(|e| format!("Failed to spawn gsd binary at '{}': {}", binary.display(), e))?;

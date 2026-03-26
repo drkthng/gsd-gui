@@ -1,10 +1,15 @@
-import { Map } from "lucide-react";
+import { AlertCircle, FolderOpen, Map } from "lucide-react";
 import { RoadmapView } from "@/components/dashboard/roadmap-view";
-import { mockMilestones } from "@/test/mock-data";
+import { useMilestoneData } from "@/hooks/use-milestone-data";
+import { useProjectStore } from "@/stores/project-store";
+import { LoadingState } from "@/components/shared/loading-state";
+import { EmptyState } from "@/components/shared/empty-state";
 
 export function TimelinePage() {
-  // TODO: Replace with real data — show active milestone's slices
-  const slices = mockMilestones.flatMap((m) =>
+  const activeProject = useProjectStore((s) => s.activeProject);
+  const { milestones, isLoading, error } = useMilestoneData();
+
+  const slices = milestones.flatMap((m) =>
     m.slices.map((s) => ({ ...s, id: `${m.id}/${s.id}` }))
   );
 
@@ -19,7 +24,29 @@ export function TimelinePage() {
           </p>
         </div>
       </div>
-      <RoadmapView slices={slices} />
+      {!activeProject ? (
+        <EmptyState
+          icon={FolderOpen}
+          title="No project selected"
+          description="Select a project from the gallery to view the timeline."
+        />
+      ) : isLoading ? (
+        <LoadingState message="Loading timeline data…" />
+      ) : error ? (
+        <EmptyState
+          icon={AlertCircle}
+          title="Failed to load timeline"
+          description={error}
+        />
+      ) : slices.length === 0 ? (
+        <EmptyState
+          icon={Map}
+          title="No slices"
+          description="This project has no roadmap slices yet."
+        />
+      ) : (
+        <RoadmapView slices={slices} />
+      )}
     </div>
   );
 }
