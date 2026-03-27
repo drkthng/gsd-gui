@@ -8,6 +8,9 @@
 use std::path::Path;
 use std::process::Command;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 use crate::gsd_resolve::resolve_gsd_binary;
 
 /// Run `gsd init <path>` as a blocking one-shot child process.
@@ -44,6 +47,10 @@ pub fn run_gsd_init(path: &str) -> Result<(), String> {
     }
 
     cmd.arg("init").arg(path);
+
+    // On Windows, prevent a console window from flashing up
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
 
     let output = cmd
         .output()

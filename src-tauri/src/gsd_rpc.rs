@@ -16,6 +16,7 @@ pub enum RpcCommand {
     GetSessionStats,
     GetMessages,
     NewSession,
+    GetCommands,
 }
 
 // ---------------------------------------------------------------------------

@@ -4,6 +4,9 @@ use tauri::AppHandle;
 use tauri::Emitter;
 use tokio::process::Command;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 use crate::gsd_resolve::resolve_gsd_binary;
 
 // ---------------------------------------------------------------------------
@@ -170,18 +173,20 @@ async fn get_installed_version() -> String {
         .unwrap_or_default();
 
     let output = if ext == "js" || ext == "mjs" {
-        Command::new("node")
-            .arg(&binary)
-            .arg("--version")
-            .output()
-            .await
+        let mut c = Command::new("node");
+        c.arg(&binary).arg("--version");
+        #[cfg(windows)] c.creation_flags(0x08000000);
+        c.output().await
     } else if ext == "cmd" || ext == "bat" {
-        Command::new("cmd.exe")
-            .args(["/c", binary.to_str().unwrap_or_default(), "--version"])
-            .output()
-            .await
+        let mut c = Command::new("cmd.exe");
+        c.args(["/c", binary.to_str().unwrap_or_default(), "--version"]);
+        #[cfg(windows)] c.creation_flags(0x08000000);
+        c.output().await
     } else {
-        Command::new(&binary).arg("--version").output().await
+        let mut c = Command::new(&binary);
+        c.arg("--version");
+        #[cfg(windows)] c.creation_flags(0x08000000);
+        c.output().await
     };
 
     match output {
@@ -201,9 +206,13 @@ async fn get_latest_npm_version() -> String {
     // network round-trip — npm show is a blocking subprocess.
     let npm_clone = npm.clone();
     let result = tokio::task::spawn_blocking(move || {
-        std::process::Command::new(&npm_clone)
-            .args(["show", "gsd-pi", "version"])
-            .output()
+        let mut c = std::process::Command::new(&npm_clone);
+        c.args(["show", "gsd-pi", "version"]);
+        #[cfg(windows)] {
+            use std::os::windows::process::CommandExt;
+            c.creation_flags(0x08000000);
+        }
+        c.output()
     })
     .await;
 
@@ -274,11 +283,10 @@ pub async fn upgrade_gsd(app: AppHandle) -> Result<(), String> {
     // Build the install command
     #[cfg(target_os = "windows")]
     let output = {
-        // On Windows use npm.cmd through cmd.exe to handle .cmd extensions
-        Command::new(&npm)
-            .args(["install", "-g", "gsd-pi@latest"])
-            .output()
-            .await
+        let mut c = Command::new(&npm);
+        c.args(["install", "-g", "gsd-pi@latest"]);
+        c.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        c.output().await
     };
 
     #[cfg(not(target_os = "windows"))]
