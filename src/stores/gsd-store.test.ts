@@ -301,7 +301,7 @@ describe("gsd-store", () => {
       await startAuto();
       expect(mockClient.sendCommand).toHaveBeenCalledWith({
         type: "prompt",
-        text: "/gsd auto",
+        message: "/gsd auto",
       });
       expect(useGsdStore.getState().autoMode).toBe(true);
     });
@@ -325,7 +325,7 @@ describe("gsd-store", () => {
       await nextStep();
       expect(mockClient.sendCommand).toHaveBeenCalledWith({
         type: "prompt",
-        text: "/gsd next",
+        message: "/gsd next",
       });
     });
 
@@ -335,7 +335,7 @@ describe("gsd-store", () => {
       await steerExecution("focus on tests");
       expect(mockClient.sendCommand).toHaveBeenCalledWith({
         type: "steer",
-        text: "focus on tests",
+        message: "focus on tests",
       });
     });
 
