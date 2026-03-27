@@ -22,17 +22,38 @@ export type RpcCommand =
 
 // ---------------------------------------------------------------------------
 // RPC Events (GSD process → frontend via stdout)
-// Mirrors: src-tauri/src/gsd_rpc.rs — RpcEvent
-// serde(tag = "type", rename_all = "snake_case")
-// Field names stay snake_case in JSON (no rename_all on struct fields).
+// Mirrors actual GSD RPC protocol (gsd v2.53+)
+// Events are emitted as raw JSONL over stdout and forwarded as-is.
 // ---------------------------------------------------------------------------
 
+/** A GSD message content block (text or tool use) */
+export interface GsdContentBlock {
+  type: "text" | "tool_use" | "tool_result";
+  text?: string;
+  index?: number;
+}
+
+/** A GSD message (user or assistant) as emitted by agent_end */
+export interface GsdMessage {
+  role: "user" | "assistant";
+  content: GsdContentBlock[] | string;
+  timestamp?: number;
+}
+
+/** The assistantMessageEvent sub-object inside message_update */
+export type AssistantMessageEvent =
+  | { type: "text_start"; contentIndex: number }
+  | { type: "text_delta"; contentIndex: number; delta: string }
+  | { type: "text_end"; contentIndex: number; content: string };
+
 export type RpcEvent =
-  | { type: "agent_start"; session_id: string }
-  | { type: "agent_end"; session_id: string }
-  | { type: "assistant_message"; content: string; done: boolean }
-  | { type: "tool_execution_start"; tool: string; id: string }
-  | { type: "tool_execution_end"; tool: string; id: string; success: boolean }
+  | { type: "agent_start" }
+  | { type: "agent_end"; messages: GsdMessage[] }
+  | { type: "turn_start" }
+  | { type: "turn_end" }
+  | { type: "message_start"; message: GsdMessage }
+  | { type: "message_end"; message: GsdMessage }
+  | { type: "message_update"; assistantMessageEvent: AssistantMessageEvent; message: GsdMessage }
   | {
       type: "response";
       command: string;
@@ -48,9 +69,9 @@ export type RpcEvent =
       message?: string;
       notifyType?: string;
       statusKey?: string;
+      statusText?: string;
       payload?: unknown;
     }
-  | { type: "session_state_changed"; payload: unknown }
   | { type: "error"; message: string };
 
 // ---------------------------------------------------------------------------

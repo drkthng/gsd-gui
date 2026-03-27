@@ -145,26 +145,53 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
         set({ isStreaming: true, sessionState: "streaming" });
         break;
 
-      case "agent_end":
-        set({ isStreaming: false, sessionState: "connected", autoMode: false });
+      case "agent_end": {
+        // agent_end carries the full messages array — extract the last assistant message
+        // as the canonical final content, replacing the streaming placeholder if any.
+        const assistantMsgs = event.messages.filter((m) => m.role === "assistant");
+        const lastAssistant = assistantMsgs[assistantMsgs.length - 1];
+        if (lastAssistant) {
+          // Flatten content: can be string or array of content blocks
+          const text =
+            typeof lastAssistant.content === "string"
+              ? lastAssistant.content
+              : lastAssistant.content
+                  .filter((b) => b.type === "text")
+                  .map((b) => b.text ?? "")
+                  .join("");
+          set((s) => {
+            const msgs = [...s.messages];
+            const lastMsg = msgs[msgs.length - 1];
+            if (lastMsg && lastMsg.role === "assistant") {
+              // Replace streaming placeholder with final content
+              msgs[msgs.length - 1] = { ...lastMsg, content: text };
+            } else {
+              msgs.push({ role: "assistant", content: text, timestamp: Date.now() });
+            }
+            return { messages: msgs, isStreaming: false, sessionState: "connected", autoMode: false };
+          });
+        } else {
+          set({ isStreaming: false, sessionState: "connected", autoMode: false });
+        }
         break;
+      }
 
-      case "assistant_message": {
-        set((s) => {
-          const msgs = [...s.messages];
-          const last = msgs[msgs.length - 1];
-          if (last && last.role === "assistant" && !event.done) {
-            // Append to existing streaming message
-            msgs[msgs.length - 1] = { ...last, content: last.content + event.content };
-          } else if (last && last.role === "assistant" && event.done) {
-            // Final chunk — append content and mark done
-            msgs[msgs.length - 1] = { ...last, content: last.content + event.content };
-          } else {
-            // New assistant message
-            msgs.push({ role: "assistant", content: event.content, timestamp: Date.now() });
-          }
-          return { messages: msgs };
-        });
+      case "message_update": {
+        // Stream text deltas to give live feedback during generation
+        const ev = event.assistantMessageEvent;
+        if (ev.type === "text_delta" && ev.delta) {
+          const delta = ev.delta;
+          set((s) => {
+            const msgs = [...s.messages];
+            const last = msgs[msgs.length - 1];
+            if (last && last.role === "assistant") {
+              msgs[msgs.length - 1] = { ...last, content: last.content + delta };
+            } else {
+              msgs.push({ role: "assistant", content: delta, timestamp: Date.now() });
+            }
+            return { messages: msgs };
+          });
+        }
         break;
       }
 
@@ -194,8 +221,7 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
         break;
       }
 
-      // tool_execution_start, tool_execution_end, session_state_changed
-      // are informational — could be handled by future UI components
+      // turn_start, turn_end, message_start, message_end — informational
       default:
         break;
     }

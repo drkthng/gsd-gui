@@ -25,12 +25,11 @@ pub enum RpcCommand {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RpcEvent {
-    // -- Streaming events (during prompt execution) --
-    AgentStart { session_id: String },
-    AgentEnd { session_id: String },
-    AssistantMessage { content: String, done: bool },
-    ToolExecutionStart { tool: String, id: String },
-    ToolExecutionEnd { tool: String, id: String, success: bool },
+    // -- Lifecycle --
+    AgentStart {},
+    AgentEnd {},
+    TurnStart {},
+    TurnEnd {},
 
     // -- Response envelope (reply to any RpcCommand) --
     Response {
@@ -55,11 +54,10 @@ pub enum RpcEvent {
         payload: Option<serde_json::Value>,
     },
 
-    // -- State & error --
-    SessionStateChanged { payload: serde_json::Value },
+    // -- Error --
     Error { message: String },
 
-    // -- Catch-all for unknown event types --
+    // -- Catch-all: message_update, message_start, message_end, etc. --
     #[serde(other)]
     Unknown,
 }
@@ -167,27 +165,26 @@ mod tests {
 
     #[test]
     fn test_parse_agent_start_event() {
-        let line = r#"{"type":"agent_start","session_id":"abc"}"#;
+        // Real GSD protocol: agent_start has no session_id field
+        let line = r#"{"type":"agent_start"}"#;
         let evt = parse_event(line).unwrap();
-        assert_eq!(
-            evt,
-            RpcEvent::AgentStart {
-                session_id: "abc".into()
-            }
-        );
+        assert_eq!(evt, RpcEvent::AgentStart {});
     }
 
     #[test]
-    fn test_parse_assistant_message_event() {
-        let line = r#"{"type":"assistant_message","content":"hi","done":false}"#;
+    fn test_parse_agent_start_with_extra_fields() {
+        // GSD may add extra fields — they're ignored, not an error
+        let line = r#"{"type":"agent_start","session_id":"abc","extra":"ignored"}"#;
         let evt = parse_event(line).unwrap();
-        assert_eq!(
-            evt,
-            RpcEvent::AssistantMessage {
-                content: "hi".into(),
-                done: false,
-            }
-        );
+        assert_eq!(evt, RpcEvent::AgentStart {});
+    }
+
+    #[test]
+    fn test_parse_message_update_is_unknown() {
+        // message_update (streaming delta) is handled in JS; Rust maps to Unknown
+        let line = r#"{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"Hi"},"message":{}}"#;
+        let evt = parse_event(line).unwrap();
+        assert_eq!(evt, RpcEvent::Unknown);
     }
 
     #[test]
@@ -204,17 +201,11 @@ mod tests {
 
     #[test]
     fn test_parse_tool_execution_end_event() {
+        // tool_execution_end is not in our enum — should parse as Unknown (not error)
         let line =
             r#"{"type":"tool_execution_end","tool":"bash","id":"t1","success":true}"#;
         let evt = parse_event(line).unwrap();
-        assert_eq!(
-            evt,
-            RpcEvent::ToolExecutionEnd {
-                tool: "bash".into(),
-                id: "t1".into(),
-                success: true,
-            }
-        );
+        assert_eq!(evt, RpcEvent::Unknown);
     }
 
     // -- Response envelope parsing --

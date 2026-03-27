@@ -105,29 +105,45 @@ describe("gsd-store", () => {
   describe("handleGsdEvent", () => {
     it("handles agent_start by setting streaming", () => {
       const { handleGsdEvent } = useGsdStore.getState();
-      handleGsdEvent({ type: "agent_start", session_id: "s1" });
+      handleGsdEvent({ type: "agent_start" });
       expect(useGsdStore.getState().isStreaming).toBe(true);
       expect(useGsdStore.getState().sessionState).toBe("streaming");
     });
 
-    it("handles agent_end by clearing streaming", () => {
+    it("handles agent_end by clearing streaming and storing assistant message", () => {
       useGsdStore.setState({ isStreaming: true, sessionState: "streaming" });
       const { handleGsdEvent } = useGsdStore.getState();
-      handleGsdEvent({ type: "agent_end", session_id: "s1" });
+      handleGsdEvent({
+        type: "agent_end",
+        messages: [
+          { role: "user", content: [{ type: "text", text: "hi" }] },
+          { role: "assistant", content: [{ type: "text", text: "Hello there" }] },
+        ],
+      });
       expect(useGsdStore.getState().isStreaming).toBe(false);
       expect(useGsdStore.getState().sessionState).toBe("connected");
+      const msgs = useGsdStore.getState().messages;
+      expect(msgs[msgs.length - 1].role).toBe("assistant");
+      expect(msgs[msgs.length - 1].content).toBe("Hello there");
     });
 
-    it("handles assistant_message by accumulating messages", () => {
+    it("handles message_update text_delta by streaming content", () => {
       const { handleGsdEvent } = useGsdStore.getState();
-      handleGsdEvent({ type: "assistant_message", content: "Hello ", done: false });
-      handleGsdEvent({ type: "assistant_message", content: "world", done: true });
+      handleGsdEvent({
+        type: "message_update",
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Hello " },
+        message: { role: "assistant", content: [{ type: "text", text: "Hello " }] },
+      });
+      handleGsdEvent({
+        type: "message_update",
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "world" },
+        message: { role: "assistant", content: [{ type: "text", text: "Hello world" }] },
+      });
       const msgs = useGsdStore.getState().messages;
-      // Streaming: first chunk creates a message, subsequent chunks append
       expect(msgs.length).toBeGreaterThanOrEqual(1);
       const lastMsg = msgs[msgs.length - 1];
       expect(lastMsg.role).toBe("assistant");
-      expect(lastMsg.content).toContain("world");
+      expect(lastMsg.content).toBe("Hello world");
     });
 
     it("handles extension_ui_request by queuing", () => {
@@ -317,7 +333,7 @@ describe("gsd-store", () => {
         autoMode: true,
       });
       const { handleGsdEvent } = useGsdStore.getState();
-      handleGsdEvent({ type: "agent_end", session_id: "s1" });
+      handleGsdEvent({ type: "agent_end", messages: [] });
       expect(useGsdStore.getState().autoMode).toBe(false);
     });
 
