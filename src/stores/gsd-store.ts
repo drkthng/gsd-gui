@@ -17,6 +17,13 @@ export interface GsdMessage {
   timestamp: number;
 }
 
+export interface GsdNotification {
+  id: string;
+  message: string;
+  notifyType?: string;
+  timestamp: number;
+}
+
 export interface PendingUIRequest {
   id: string;
   method: string;
@@ -31,6 +38,7 @@ interface GsdState {
   messages: GsdMessage[];
   isStreaming: boolean;
   pendingUIRequests: PendingUIRequest[];
+  notifications: GsdNotification[];
   error: string | null;
   activeProjectPath: string | null;
   backendReady: boolean;
@@ -51,6 +59,8 @@ interface GsdState {
   respondToUIRequest: (requestId: string, response: unknown) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
+  dismissNotification: (id: string) => void;
+  clearNotifications: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -64,6 +74,7 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
   messages: [],
   isStreaming: false,
   pendingUIRequests: [],
+  notifications: [],
   error: null,
   activeProjectPath: null,
   backendReady: false,
@@ -109,7 +120,7 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
     if (sessionState !== "connected" && sessionState !== "streaming") return;
     const msg: GsdMessage = { role: "user", content: text, timestamp: Date.now() };
     set((s) => ({ messages: [...s.messages, msg] }));
-    await client.sendCommand({ type: "prompt", text });
+    await client.sendCommand({ type: "prompt", message: text });
   },
 
   startAuto: async () => {
@@ -117,7 +128,7 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
     if (sessionState !== "connected" && sessionState !== "streaming") return;
     const msg: GsdMessage = { role: "user", content: "/gsd auto", timestamp: Date.now() };
     set((s) => ({ messages: [...s.messages, msg], autoMode: true }));
-    await client.sendCommand({ type: "prompt", text: "/gsd auto" });
+    await client.sendCommand({ type: "prompt", message: "/gsd auto" });
   },
 
   stopAuto: async () => {
@@ -130,13 +141,13 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
     if (sessionState !== "connected" && sessionState !== "streaming") return;
     const msg: GsdMessage = { role: "user", content: "/gsd next", timestamp: Date.now() };
     set((s) => ({ messages: [...s.messages, msg] }));
-    await client.sendCommand({ type: "prompt", text: "/gsd next" });
+    await client.sendCommand({ type: "prompt", message: "/gsd next" });
   },
 
   steerExecution: async (text: string) => {
     const { sessionState } = get();
     if (sessionState !== "streaming") return;
-    await client.sendCommand({ type: "steer", text });
+    await client.sendCommand({ type: "steer", message: text });
   },
 
   handleGsdEvent: (event: RpcEvent) => {
@@ -146,36 +157,89 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
         break;
 
       case "agent_end":
+        // agent_end signals the full agent run is done — just clear streaming.
+        // Message content is already finalized by turn_end events.
         set({ isStreaming: false, sessionState: "connected", autoMode: false });
         break;
 
-      case "assistant_message": {
-        set((s) => {
-          const msgs = [...s.messages];
-          const last = msgs[msgs.length - 1];
-          if (last && last.role === "assistant" && !event.done) {
-            // Append to existing streaming message
-            msgs[msgs.length - 1] = { ...last, content: last.content + event.content };
-          } else if (last && last.role === "assistant" && event.done) {
-            // Final chunk — append content and mark done
-            msgs[msgs.length - 1] = { ...last, content: last.content + event.content };
-          } else {
-            // New assistant message
-            msgs.push({ role: "assistant", content: event.content, timestamp: Date.now() });
+      case "turn_end": {
+        // turn_end carries the canonical final text for this turn.
+        // Replace the streaming placeholder (built from text_deltas) with it.
+        const msg = event.message;
+        if (msg.role === "assistant") {
+          const text =
+            typeof msg.content === "string"
+              ? msg.content
+              : msg.content
+                  .filter((b) => b.type === "text")
+                  .map((b) => b.text ?? "")
+                  .join("");
+          if (text) {
+            set((s) => {
+              const msgs = [...s.messages];
+              const last = msgs[msgs.length - 1];
+              if (last && last.role === "assistant") {
+                msgs[msgs.length - 1] = { ...last, content: text };
+              } else {
+                msgs.push({ role: "assistant", content: text, timestamp: Date.now() });
+              }
+              return { messages: msgs };
+            });
           }
-          return { messages: msgs };
-        });
+        }
         break;
       }
 
-      case "extension_ui_request":
+      case "message_update": {
+        // Stream text deltas to give live feedback during generation
+        const ev = event.assistantMessageEvent;
+        if (ev.type === "text_delta" && ev.delta) {
+          const delta = ev.delta;
+          set((s) => {
+            const msgs = [...s.messages];
+            const last = msgs[msgs.length - 1];
+            if (last && last.role === "assistant") {
+              msgs[msgs.length - 1] = { ...last, content: last.content + delta };
+            } else {
+              msgs.push({ role: "assistant", content: delta, timestamp: Date.now() });
+            }
+            return { messages: msgs };
+          });
+        }
+        break;
+      }
+
+      case "extension_ui_request": {
+        const { id, method, message, notifyType, statusKey, payload } = event;
+        // Fire-and-forget methods: no dialog needed, respond immediately and move on.
+        // Only confirm/select/input/editor require user interaction.
+        const SILENT_METHODS = new Set([
+          "setStatus", "setTitle", "setWidget",
+          "setWorkingMessage", "set_editor_text", "pasteToEditor",
+        ]);
+        if (method === "notify") {
+          // Store notification for the notification panel — never block as dialog
+          if (message) {
+            set((s) => ({
+              notifications: [
+                ...s.notifications,
+                { id, message, notifyType: notifyType ?? undefined, timestamp: Date.now() },
+              ].slice(-50), // keep last 50
+            }));
+          }
+          break;
+        }
+        if (SILENT_METHODS.has(method)) {
+          break;
+        }
         set((s) => ({
           pendingUIRequests: [
             ...s.pendingUIRequests,
-            { id: event.id, method: event.method, message: event.message, notifyType: event.notifyType, statusKey: event.statusKey, payload: event.payload },
+            { id, method, message, notifyType, statusKey, payload },
           ],
         }));
         break;
+      }
 
       case "error":
         set({ error: event.message });
@@ -192,8 +256,7 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
         break;
       }
 
-      // tool_execution_start, tool_execution_end, session_state_changed
-      // are informational — could be handled by future UI components
+      // turn_start, turn_end, message_start, message_end — informational
       default:
         break;
     }
@@ -215,11 +278,13 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
     // For now, use a generic command. This will be refined when M003 implements UI request rendering.
     await client.sendCommand({
       type: "steer",
-      text: JSON.stringify({ request_id: requestId, response }),
+      message: JSON.stringify({ request_id: requestId, response }),
     });
   },
 
   clearMessages: () => set({ messages: [] }),
-
   clearError: () => set({ error: null }),
+  dismissNotification: (id: string) =>
+    set((s) => ({ notifications: s.notifications.filter((n) => n.id !== id) })),
+  clearNotifications: () => set({ notifications: [] }),
 }));

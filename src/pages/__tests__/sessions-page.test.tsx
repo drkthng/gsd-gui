@@ -61,8 +61,18 @@ const fakeSession: SessionInfo = {
   isActive: false,
 };
 
-const defaultProjectState = {
-  activeProject: fakeProject as SavedProject | null,
+const defaultProjectState: {
+  activeProject: SavedProject | null;
+  projects: SavedProject[];
+  isLoading: boolean;
+  error: string | null;
+  loadProjects: ReturnType<typeof vi.fn>;
+  addProject: ReturnType<typeof vi.fn>;
+  removeProject: ReturnType<typeof vi.fn>;
+  selectProject: ReturnType<typeof vi.fn>;
+  clearError: ReturnType<typeof vi.fn>;
+} = {
+  activeProject: fakeProject,
   projects: [] as SavedProject[],
   isLoading: false,
   error: null,

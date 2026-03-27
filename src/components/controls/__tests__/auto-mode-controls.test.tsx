@@ -56,7 +56,7 @@ describe("AutoModeControls", () => {
     renderWithProviders(<AutoModeControls />);
     await userEvent.click(screen.getByRole("button", { name: /start auto/i }));
     expect(mockClient.sendCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "prompt", text: "/gsd auto" })
+      expect.objectContaining({ type: "prompt", message: "/gsd auto" })
     );
   });
 
@@ -73,7 +73,7 @@ describe("AutoModeControls", () => {
     renderWithProviders(<AutoModeControls />);
     await userEvent.click(screen.getByRole("button", { name: /next step/i }));
     expect(mockClient.sendCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "prompt", text: "/gsd next" })
+      expect.objectContaining({ type: "prompt", message: "/gsd next" })
     );
   });
 
@@ -103,7 +103,7 @@ describe("AutoModeControls", () => {
     await userEvent.click(screen.getByRole("button", { name: /send steer/i }));
 
     expect(mockClient.sendCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "steer", text: "focus on tests" })
+      expect.objectContaining({ type: "steer", message: "focus on tests" })
     );
   });
 
@@ -116,7 +116,7 @@ describe("AutoModeControls", () => {
     await userEvent.type(input, "adjust priority{Enter}");
 
     expect(mockClient.sendCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "steer", text: "adjust priority" })
+      expect.objectContaining({ type: "steer", message: "adjust priority" })
     );
   });
 

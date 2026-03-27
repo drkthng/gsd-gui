@@ -87,7 +87,7 @@ describe("gsd-store", () => {
       useGsdStore.setState({ sessionState: "connected" });
       const { sendPrompt } = useGsdStore.getState();
       await sendPrompt("hello");
-      expect(mockClient.sendCommand).toHaveBeenCalledWith({ type: "prompt", text: "hello" });
+      expect(mockClient.sendCommand).toHaveBeenCalledWith({ type: "prompt", message: "hello" });
       const msgs = useGsdStore.getState().messages;
       expect(msgs).toHaveLength(1);
       expect(msgs[0].role).toBe("user");
@@ -105,29 +105,58 @@ describe("gsd-store", () => {
   describe("handleGsdEvent", () => {
     it("handles agent_start by setting streaming", () => {
       const { handleGsdEvent } = useGsdStore.getState();
-      handleGsdEvent({ type: "agent_start", session_id: "s1" });
+      handleGsdEvent({ type: "agent_start" });
       expect(useGsdStore.getState().isStreaming).toBe(true);
       expect(useGsdStore.getState().sessionState).toBe("streaming");
     });
 
-    it("handles agent_end by clearing streaming", () => {
+    it("handles agent_end by clearing streaming state only", () => {
       useGsdStore.setState({ isStreaming: true, sessionState: "streaming" });
       const { handleGsdEvent } = useGsdStore.getState();
-      handleGsdEvent({ type: "agent_end", session_id: "s1" });
+      handleGsdEvent({
+        type: "agent_end",
+        messages: [
+          { role: "user", content: [{ type: "text", text: "hi" }] },
+          { role: "assistant", content: [{ type: "text", text: "Hello there" }] },
+        ],
+      });
       expect(useGsdStore.getState().isStreaming).toBe(false);
       expect(useGsdStore.getState().sessionState).toBe("connected");
     });
 
-    it("handles assistant_message by accumulating messages", () => {
+    it("handles turn_end by finalizing the assistant message", () => {
+      // Simulate a streaming placeholder from text_deltas
+      useGsdStore.setState({
+        messages: [{ role: "assistant", content: "partial...", timestamp: Date.now() }],
+      });
       const { handleGsdEvent } = useGsdStore.getState();
-      handleGsdEvent({ type: "assistant_message", content: "Hello ", done: false });
-      handleGsdEvent({ type: "assistant_message", content: "world", done: true });
+      handleGsdEvent({
+        type: "turn_end",
+        message: { role: "assistant", content: [{ type: "text", text: "Final answer here." }] },
+        toolResults: [],
+      });
       const msgs = useGsdStore.getState().messages;
-      // Streaming: first chunk creates a message, subsequent chunks append
+      expect(msgs[msgs.length - 1].role).toBe("assistant");
+      expect(msgs[msgs.length - 1].content).toBe("Final answer here.");
+    });
+
+    it("handles message_update text_delta by streaming content", () => {
+      const { handleGsdEvent } = useGsdStore.getState();
+      handleGsdEvent({
+        type: "message_update",
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Hello " },
+        message: { role: "assistant", content: [{ type: "text", text: "Hello " }] },
+      });
+      handleGsdEvent({
+        type: "message_update",
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "world" },
+        message: { role: "assistant", content: [{ type: "text", text: "Hello world" }] },
+      });
+      const msgs = useGsdStore.getState().messages;
       expect(msgs.length).toBeGreaterThanOrEqual(1);
       const lastMsg = msgs[msgs.length - 1];
       expect(lastMsg.role).toBe("assistant");
-      expect(lastMsg.content).toContain("world");
+      expect(lastMsg.content).toBe("Hello world");
     });
 
     it("handles extension_ui_request by queuing", () => {
@@ -272,7 +301,7 @@ describe("gsd-store", () => {
       await startAuto();
       expect(mockClient.sendCommand).toHaveBeenCalledWith({
         type: "prompt",
-        text: "/gsd auto",
+        message: "/gsd auto",
       });
       expect(useGsdStore.getState().autoMode).toBe(true);
     });
@@ -296,7 +325,7 @@ describe("gsd-store", () => {
       await nextStep();
       expect(mockClient.sendCommand).toHaveBeenCalledWith({
         type: "prompt",
-        text: "/gsd next",
+        message: "/gsd next",
       });
     });
 
@@ -306,7 +335,7 @@ describe("gsd-store", () => {
       await steerExecution("focus on tests");
       expect(mockClient.sendCommand).toHaveBeenCalledWith({
         type: "steer",
-        text: "focus on tests",
+        message: "focus on tests",
       });
     });
 
@@ -317,7 +346,7 @@ describe("gsd-store", () => {
         autoMode: true,
       });
       const { handleGsdEvent } = useGsdStore.getState();
-      handleGsdEvent({ type: "agent_end", session_id: "s1" });
+      handleGsdEvent({ type: "agent_end", messages: [] });
       expect(useGsdStore.getState().autoMode).toBe(false);
     });
 

@@ -292,7 +292,7 @@ describe("DemoClient", () => {
       const unlisten = await client.onGsdEvent((payload) => events.push(payload));
 
       await client.startSession("/any");
-      await client.sendCommand({ type: "prompt", text: "hello" });
+      await client.sendCommand({ type: "prompt", message: "hello" });
 
       // Advance past the 200ms setTimeout that starts streaming
       vi.advanceTimersByTime(200);
@@ -334,7 +334,7 @@ describe("DemoClient", () => {
       const unlisten = await client.onGsdEvent((payload) => events.push(payload));
 
       // Don't call startSession — session is disconnected
-      await client.sendCommand({ type: "prompt", text: "hello" });
+      await client.sendCommand({ type: "prompt", message: "hello" });
 
       vi.advanceTimersByTime(5000);
       expect(events).toHaveLength(0);
@@ -370,7 +370,7 @@ describe("DemoClient", () => {
       });
 
       await client.startSession("/any");
-      await client.sendCommand({ type: "prompt", text: "test" });
+      await client.sendCommand({ type: "prompt", message: "test" });
 
       vi.advanceTimersByTime(200);
       vi.advanceTimersByTime(10000);
@@ -401,7 +401,7 @@ describe("DemoClient", () => {
       });
 
       await client.startSession("/any");
-      await client.sendCommand({ type: "prompt", text: "what are you" });
+      await client.sendCommand({ type: "prompt", message: "what are you" });
 
       vi.advanceTimersByTime(200);
       vi.advanceTimersByTime(10000);
@@ -417,7 +417,7 @@ describe("DemoClient", () => {
       const unlisten = await client.onGsdEvent((payload) => events.push(payload));
 
       await client.startSession("/any");
-      await client.sendCommand({ type: "prompt", text: "hi" });
+      await client.sendCommand({ type: "prompt", message: "hi" });
 
       vi.advanceTimersByTime(200);
       vi.advanceTimersByTime(5000);
@@ -454,7 +454,7 @@ describe("DemoClient", () => {
       });
 
       await client.startSession("/any");
-      await client.sendCommand({ type: "prompt", text: prompt });
+      await client.sendCommand({ type: "prompt", message: prompt });
 
       vi.advanceTimersByTime(200);
       vi.advanceTimersByTime(15000);

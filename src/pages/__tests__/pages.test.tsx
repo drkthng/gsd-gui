@@ -28,6 +28,8 @@ vi.mock("@/services/gsd-client", () => ({
     onProcessExit: vi.fn().mockResolvedValue(vi.fn()),
     onProcessError: vi.fn().mockResolvedValue(vi.fn()),
     onFileChanged: vi.fn().mockResolvedValue(vi.fn()),
+    readPreferences: vi.fn().mockResolvedValue(null),
+    writePreferences: vi.fn().mockResolvedValue(undefined),
   }),
 }));
 
@@ -127,7 +129,7 @@ const pages: PageDef[] = [
   {
     name: "Settings",
     Component: SettingsPage,
-    uniqueText: "Token Profile",
+    uniqueText: "Workflow Mode",
     hasMockSections: false,
   },
   {

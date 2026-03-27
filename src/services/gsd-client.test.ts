@@ -60,7 +60,7 @@ describe("gsd-client", () => {
 
   it("sendCommand() calls invoke with stringified command", async () => {
     const client = createGsdClient();
-    const command: RpcCommand = { type: "prompt", text: "hello" };
+    const command: RpcCommand = { type: "prompt", message: "hello" };
     await client.sendCommand(command);
     expect(mockInvoke).toHaveBeenCalledWith("send_gsd_command", {
       command: JSON.stringify(command),
