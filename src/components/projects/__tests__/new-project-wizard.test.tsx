@@ -170,7 +170,7 @@ describe("NewProjectWizard", () => {
       expect(props.onSubmit).toHaveBeenCalledOnce();
     });
 
-    const submitted: WizardFormData = props.onSubmit.mock.calls[0][0];
+    const submitted: WizardFormData = vi.mocked(props.onSubmit).mock.calls[0][0];
     expect(submitted.name).toBe("my-app");
     expect(submitted.description).toBe("Test project");
     expect(submitted.techStack).toContain("TypeScript");

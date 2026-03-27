@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RpcCommand {
-    Prompt { text: String },
-    Steer { text: String },
+    Prompt { message: String },
+    Steer { message: String },
     Abort,
     GetState,
     SetModel { model: String },
@@ -134,13 +134,13 @@ mod tests {
     #[test]
     fn test_serialize_prompt_command() {
         let cmd = RpcCommand::Prompt {
-            text: "hello".into(),
+            message: "hello".into(),
         };
         let json = serialize_command(&cmd).unwrap();
         assert!(json.ends_with('\n'));
         let v: serde_json::Value = serde_json::from_str(json.trim()).unwrap();
         assert_eq!(v["type"], "prompt");
-        assert_eq!(v["text"], "hello");
+        assert_eq!(v["message"], "hello");
     }
 
     #[test]

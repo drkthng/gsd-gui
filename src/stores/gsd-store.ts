@@ -109,7 +109,7 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
     if (sessionState !== "connected" && sessionState !== "streaming") return;
     const msg: GsdMessage = { role: "user", content: text, timestamp: Date.now() };
     set((s) => ({ messages: [...s.messages, msg] }));
-    await client.sendCommand({ type: "prompt", text });
+    await client.sendCommand({ type: "prompt", message: text });
   },
 
   startAuto: async () => {
@@ -117,7 +117,7 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
     if (sessionState !== "connected" && sessionState !== "streaming") return;
     const msg: GsdMessage = { role: "user", content: "/gsd auto", timestamp: Date.now() };
     set((s) => ({ messages: [...s.messages, msg], autoMode: true }));
-    await client.sendCommand({ type: "prompt", text: "/gsd auto" });
+    await client.sendCommand({ type: "prompt", message: "/gsd auto" });
   },
 
   stopAuto: async () => {
@@ -130,13 +130,13 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
     if (sessionState !== "connected" && sessionState !== "streaming") return;
     const msg: GsdMessage = { role: "user", content: "/gsd next", timestamp: Date.now() };
     set((s) => ({ messages: [...s.messages, msg] }));
-    await client.sendCommand({ type: "prompt", text: "/gsd next" });
+    await client.sendCommand({ type: "prompt", message: "/gsd next" });
   },
 
   steerExecution: async (text: string) => {
     const { sessionState } = get();
     if (sessionState !== "streaming") return;
-    await client.sendCommand({ type: "steer", text });
+    await client.sendCommand({ type: "steer", message: text });
   },
 
   handleGsdEvent: (event: RpcEvent) => {
@@ -168,14 +168,16 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
         break;
       }
 
-      case "extension_ui_request":
+      case "extension_ui_request": {
+        const { id, method, message, notifyType, statusKey, payload } = event;
         set((s) => ({
           pendingUIRequests: [
             ...s.pendingUIRequests,
-            { id: event.id, method: event.method, message: event.message, notifyType: event.notifyType, statusKey: event.statusKey, payload: event.payload },
+            { id, method, message, notifyType, statusKey, payload },
           ],
         }));
         break;
+      }
 
       case "error":
         set({ error: event.message });
@@ -215,7 +217,7 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
     // For now, use a generic command. This will be refined when M003 implements UI request rendering.
     await client.sendCommand({
       type: "steer",
-      text: JSON.stringify({ request_id: requestId, response }),
+      message: JSON.stringify({ request_id: requestId, response }),
     });
   },
 

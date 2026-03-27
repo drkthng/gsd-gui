@@ -87,7 +87,7 @@ describe("gsd-store", () => {
       useGsdStore.setState({ sessionState: "connected" });
       const { sendPrompt } = useGsdStore.getState();
       await sendPrompt("hello");
-      expect(mockClient.sendCommand).toHaveBeenCalledWith({ type: "prompt", text: "hello" });
+      expect(mockClient.sendCommand).toHaveBeenCalledWith({ type: "prompt", message: "hello" });
       const msgs = useGsdStore.getState().messages;
       expect(msgs).toHaveLength(1);
       expect(msgs[0].role).toBe("user");

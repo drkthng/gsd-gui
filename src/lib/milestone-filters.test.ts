@@ -4,7 +4,6 @@ import {
   groupMilestonesByStatus,
   filterMilestonesByStatus,
   getStatusCounts,
-  type StatusFilter,
 } from "@/lib/milestone-filters";
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,3 @@
-import * as React from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import type { WizardFormData } from "../new-project-wizard";

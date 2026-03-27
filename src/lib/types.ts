@@ -10,8 +10,8 @@
 // ---------------------------------------------------------------------------
 
 export type RpcCommand =
-  | { type: "prompt"; text: string }
-  | { type: "steer"; text: string }
+  | { type: "prompt"; message: string }
+  | { type: "steer"; message: string }
   | { type: "abort" }
   | { type: "get_state" }
   | { type: "set_model"; model: string }
@@ -51,8 +51,7 @@ export type RpcEvent =
       payload?: unknown;
     }
   | { type: "session_state_changed"; payload: unknown }
-  | { type: "error"; message: string }
-  | { type: string; [key: string]: unknown };
+  | { type: "error"; message: string };
 
 // ---------------------------------------------------------------------------
 // Query types

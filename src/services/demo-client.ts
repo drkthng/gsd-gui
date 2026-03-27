@@ -443,7 +443,7 @@ export function createDemoClient(): GsdClient {
     sendCommand: async (command) => {
       if (command.type === "prompt" && sessionConnected) {
         // Simulate async response
-        setTimeout(() => simulateStreamingResponse(command.text), 200);
+        setTimeout(() => simulateStreamingResponse(command.message), 200);
       }
     },
 
