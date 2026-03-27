@@ -1,6 +1,6 @@
 {
   "productName": "GSD",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "identifier": "com.gsd.app",
   "build": {
     "beforeDevCommand": "npm run dev",
