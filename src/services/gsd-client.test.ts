@@ -10,10 +10,10 @@ const { mockInvoke, mockListen } = setupTauriMocks();
 describe("gsd-client", () => {
   // Simulate Tauri environment so createGsdClient() returns the Tauri client
   beforeAll(() => {
-    (window as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+    (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
   });
   afterAll(() => {
-    delete (window as Record<string, unknown>).__TAURI_INTERNALS__;
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
   });
 
   beforeEach(() => {

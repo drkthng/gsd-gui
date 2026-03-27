@@ -51,8 +51,7 @@ export type RpcEvent =
       payload?: unknown;
     }
   | { type: "session_state_changed"; payload: unknown }
-  | { type: "error"; message: string }
-  | { type: string; [key: string]: unknown };
+  | { type: "error"; message: string };
 
 // ---------------------------------------------------------------------------
 // Query types
