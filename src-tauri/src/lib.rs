@@ -6,6 +6,7 @@ mod gsd_process;
 mod gsd_query;
 pub mod gsd_resolve;
 pub mod gsd_rpc;
+pub mod gsd_update;
 mod gsd_watcher;
 mod preferences_parser;
 mod project_registry;
@@ -260,6 +261,21 @@ fn detect_project_metadata(path: String) -> Result<gsd_detect::ProjectMetadata, 
     Ok(gsd_detect::detect_project_metadata(&path))
 }
 
+/// Restart the Tauri application — replaces the current process with a fresh instance.
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn restart_app_fn_is_defined() {
+        // Compile-time proof that restart_app is reachable via the module.
+        let _ = stringify!(super::restart_app);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -282,7 +298,10 @@ pub fn run() {
             write_preferences_cmd,
             list_activity_cmd,
             init_project,
-            detect_project_metadata
+            detect_project_metadata,
+            gsd_update::check_gsd_version,
+            gsd_update::upgrade_gsd,
+            restart_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

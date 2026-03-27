@@ -13,6 +13,8 @@ const { mockClient } = vi.hoisted(() => {
     onProcessExit: vi.fn().mockResolvedValue(vi.fn()),
     onProcessError: vi.fn().mockResolvedValue(vi.fn()),
     onFileChanged: vi.fn().mockResolvedValue(vi.fn()),
+    checkGsdVersion: vi.fn().mockResolvedValue({ installed: "1.0.0", latest: "1.0.0", updateAvailable: false, changelogUrl: "" }),
+    upgradeGsd: vi.fn().mockResolvedValue(undefined),
   };
   return { mockClient };
 });
@@ -36,6 +38,8 @@ describe("gsd-store", () => {
       activeProjectPath: null,
       backendReady: false,
       autoMode: false,
+      availableCommands: [],
+      commandsLoaded: false,
     });
   });
 
@@ -379,6 +383,57 @@ describe("gsd-store", () => {
       const { clearMessages } = useGsdStore.getState();
       clearMessages();
       expect(useGsdStore.getState().messages).toEqual([]);
+    });
+  });
+
+  describe("loadCommands / availableCommands", () => {
+    it("loadCommands sets commandsLoaded=false and sends get_commands", async () => {
+      useGsdStore.setState({ commandsLoaded: true, availableCommands: [] });
+      const { loadCommands } = useGsdStore.getState();
+      await loadCommands();
+      expect(useGsdStore.getState().commandsLoaded).toBe(false);
+      expect(mockClient.sendCommand).toHaveBeenCalledWith({ type: "get_commands" });
+    });
+
+    it("handleGsdEvent with get_commands success populates availableCommands and sets commandsLoaded=true", () => {
+      const commands = [
+        { name: "plan", description: "Plan a milestone", source: "extension" as const },
+        { name: "review", description: "Review code", source: "skill" as const },
+      ];
+      const { handleGsdEvent } = useGsdStore.getState();
+      handleGsdEvent({
+        type: "response",
+        command: "get_commands",
+        success: true,
+        data: { commands },
+      });
+      expect(useGsdStore.getState().availableCommands).toEqual(commands);
+      expect(useGsdStore.getState().commandsLoaded).toBe(true);
+    });
+
+    it("disconnect resets availableCommands and commandsLoaded", async () => {
+      useGsdStore.setState({
+        sessionState: "connected",
+        activeProjectPath: "/p",
+        availableCommands: [{ name: "plan", description: "d", source: "extension" }],
+        commandsLoaded: true,
+      });
+      const { disconnect } = useGsdStore.getState();
+      await disconnect();
+      expect(useGsdStore.getState().availableCommands).toEqual([]);
+      expect(useGsdStore.getState().commandsLoaded).toBe(false);
+    });
+
+    it("handleProcessExit resets availableCommands and commandsLoaded", () => {
+      useGsdStore.setState({
+        sessionState: "connected",
+        availableCommands: [{ name: "plan", description: "d", source: "extension" }],
+        commandsLoaded: true,
+      });
+      const { handleProcessExit } = useGsdStore.getState();
+      handleProcessExit({ code: 0, timestamp: Date.now() });
+      expect(useGsdStore.getState().availableCommands).toEqual([]);
+      expect(useGsdStore.getState().commandsLoaded).toBe(false);
     });
   });
 });

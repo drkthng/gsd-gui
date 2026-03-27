@@ -18,7 +18,26 @@ export type RpcCommand =
   | { type: "get_available_models" }
   | { type: "get_session_stats" }
   | { type: "get_messages" }
-  | { type: "new_session" };
+  | { type: "new_session" }
+  | { type: "get_commands" };
+
+// ---------------------------------------------------------------------------
+// Slash command types (returned by get_commands RPC)
+// ---------------------------------------------------------------------------
+
+/** A single GSD slash command available from extensions, prompts, or skills. */
+export interface GsdCommand {
+  name: string;
+  description: string;
+  source: "extension" | "prompt" | "skill";
+  path?: string;
+  location?: string;
+}
+
+/** Response payload for the get_commands RPC command. */
+export interface GetCommandsResponse {
+  commands: GsdCommand[];
+}
 
 // ---------------------------------------------------------------------------
 // RPC Events (GSD process → frontend via stdout)
@@ -220,6 +239,26 @@ export interface ActivityEntry {
   taskId: string | null;
   timestamp: string; // ISO
   messageCount: number;
+}
+
+// ---------------------------------------------------------------------------
+// GSD version / upgrade types
+// Mirrors: src-tauri/src/gsd_update.rs
+// serde(rename_all = "camelCase")
+// ---------------------------------------------------------------------------
+
+/** Returned by check_gsd_version — describes installed vs latest versions. */
+export interface GsdVersionInfo {
+  installed: string;
+  latest: string;
+  updateAvailable: boolean;
+  changelogUrl: string;
+}
+
+/** Emitted as `gsd-upgrade-progress` Tauri events during npm install. */
+export interface GsdUpgradeProgressPayload {
+  phase: "running" | "success" | "error";
+  message: string;
 }
 
 // ---------------------------------------------------------------------------

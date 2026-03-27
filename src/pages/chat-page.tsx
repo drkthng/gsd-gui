@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { MessageSquare } from "lucide-react";
-import { ChatView, ConnectionStatusBanner } from "@/components/chat";
+import { ChatView, ConnectionStatusBanner, RestartBanner } from "@/components/chat";
 import { MessageInput } from "@/components/chat";
 import { AutoModeControls } from "@/components/controls";
 import { useGsdStore } from "@/stores/gsd-store";
@@ -10,6 +10,8 @@ export function ChatPage() {
   const sessionState = useGsdStore((s) => s.sessionState);
   const connect = useGsdStore((s) => s.connect);
   const activeProject = useProjectStore((s) => s.activeProject);
+  const showRestartBanner = useGsdStore((s) => s.showRestartBanner);
+  const versionInfo = useGsdStore((s) => s.versionInfo);
 
   // Auto-connect when visiting the chat page with no active session.
   // Uses the active project's path, or a fallback for demo mode.
@@ -34,6 +36,9 @@ export function ChatPage() {
         </div>
         <AutoModeControls />
       </div>
+      {showRestartBanner && (
+        <RestartBanner version={versionInfo?.latest} />
+      )}
       <ConnectionStatusBanner />
       <ChatView />
       <MessageInput />
