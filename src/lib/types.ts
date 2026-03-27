@@ -72,6 +72,10 @@ export type RpcEvent =
       statusText?: string;
       payload?: unknown;
     }
+<<<<<<< HEAD
+=======
+  | { type: "session_state_changed"; payload: unknown }
+>>>>>>> milestone/M011
   | { type: "error"; message: string };
 
 // ---------------------------------------------------------------------------
