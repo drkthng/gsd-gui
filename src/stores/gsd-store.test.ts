@@ -110,7 +110,7 @@ describe("gsd-store", () => {
       expect(useGsdStore.getState().sessionState).toBe("streaming");
     });
 
-    it("handles agent_end by clearing streaming and storing assistant message", () => {
+    it("handles agent_end by clearing streaming state only", () => {
       useGsdStore.setState({ isStreaming: true, sessionState: "streaming" });
       const { handleGsdEvent } = useGsdStore.getState();
       handleGsdEvent({
@@ -122,9 +122,22 @@ describe("gsd-store", () => {
       });
       expect(useGsdStore.getState().isStreaming).toBe(false);
       expect(useGsdStore.getState().sessionState).toBe("connected");
+    });
+
+    it("handles turn_end by finalizing the assistant message", () => {
+      // Simulate a streaming placeholder from text_deltas
+      useGsdStore.setState({
+        messages: [{ role: "assistant", content: "partial...", timestamp: Date.now() }],
+      });
+      const { handleGsdEvent } = useGsdStore.getState();
+      handleGsdEvent({
+        type: "turn_end",
+        message: { role: "assistant", content: [{ type: "text", text: "Final answer here." }] },
+        toolResults: [],
+      });
       const msgs = useGsdStore.getState().messages;
       expect(msgs[msgs.length - 1].role).toBe("assistant");
-      expect(msgs[msgs.length - 1].content).toBe("Hello there");
+      expect(msgs[msgs.length - 1].content).toBe("Final answer here.");
     });
 
     it("handles message_update text_delta by streaming content", () => {

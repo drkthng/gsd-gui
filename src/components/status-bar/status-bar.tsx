@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { useGsdStore } from "@/stores/gsd-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useGsdState } from "@/hooks/use-gsd-state";
+import { NotificationPopover } from "./notification-popover";
 
 /**
  * Status bar displayed at the bottom of the app shell.
@@ -48,11 +49,14 @@ export function StatusBar() {
           {stateLabel[sessionState] ?? sessionState}
         </Badge>
       </div>
-      <div className="ml-auto flex items-center gap-1">
-        <span>Project:</span>
-        <span className="truncate max-w-[200px]">
-          {activeProject?.name ?? "None"}
-        </span>
+      <div className="ml-auto flex items-center gap-2">
+        <NotificationPopover />
+        <div className="flex items-center gap-1">
+          <span>Project:</span>
+          <span className="truncate max-w-[200px]">
+            {activeProject?.name ?? "None"}
+          </span>
+        </div>
       </div>
     </footer>
   );

@@ -17,6 +17,13 @@ export interface GsdMessage {
   timestamp: number;
 }
 
+export interface GsdNotification {
+  id: string;
+  message: string;
+  notifyType?: string;
+  timestamp: number;
+}
+
 export interface PendingUIRequest {
   id: string;
   method: string;
@@ -31,6 +38,7 @@ interface GsdState {
   messages: GsdMessage[];
   isStreaming: boolean;
   pendingUIRequests: PendingUIRequest[];
+  notifications: GsdNotification[];
   error: string | null;
   activeProjectPath: string | null;
   backendReady: boolean;
@@ -51,6 +59,8 @@ interface GsdState {
   respondToUIRequest: (requestId: string, response: unknown) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
+  dismissNotification: (id: string) => void;
+  clearNotifications: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -64,6 +74,7 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
   messages: [],
   isStreaming: false,
   pendingUIRequests: [],
+  notifications: [],
   error: null,
   activeProjectPath: null,
   backendReady: false,
@@ -145,33 +156,36 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
         set({ isStreaming: true, sessionState: "streaming" });
         break;
 
-      case "agent_end": {
-        // agent_end carries the full messages array — extract the last assistant message
-        // as the canonical final content, replacing the streaming placeholder if any.
-        const assistantMsgs = event.messages.filter((m) => m.role === "assistant");
-        const lastAssistant = assistantMsgs[assistantMsgs.length - 1];
-        if (lastAssistant) {
-          // Flatten content: can be string or array of content blocks
+      case "agent_end":
+        // agent_end signals the full agent run is done — just clear streaming.
+        // Message content is already finalized by turn_end events.
+        set({ isStreaming: false, sessionState: "connected", autoMode: false });
+        break;
+
+      case "turn_end": {
+        // turn_end carries the canonical final text for this turn.
+        // Replace the streaming placeholder (built from text_deltas) with it.
+        const msg = event.message;
+        if (msg.role === "assistant") {
           const text =
-            typeof lastAssistant.content === "string"
-              ? lastAssistant.content
-              : lastAssistant.content
+            typeof msg.content === "string"
+              ? msg.content
+              : msg.content
                   .filter((b) => b.type === "text")
                   .map((b) => b.text ?? "")
                   .join("");
-          set((s) => {
-            const msgs = [...s.messages];
-            const lastMsg = msgs[msgs.length - 1];
-            if (lastMsg && lastMsg.role === "assistant") {
-              // Replace streaming placeholder with final content
-              msgs[msgs.length - 1] = { ...lastMsg, content: text };
-            } else {
-              msgs.push({ role: "assistant", content: text, timestamp: Date.now() });
-            }
-            return { messages: msgs, isStreaming: false, sessionState: "connected", autoMode: false };
-          });
-        } else {
-          set({ isStreaming: false, sessionState: "connected", autoMode: false });
+          if (text) {
+            set((s) => {
+              const msgs = [...s.messages];
+              const last = msgs[msgs.length - 1];
+              if (last && last.role === "assistant") {
+                msgs[msgs.length - 1] = { ...last, content: text };
+              } else {
+                msgs.push({ role: "assistant", content: text, timestamp: Date.now() });
+              }
+              return { messages: msgs };
+            });
+          }
         }
         break;
       }
@@ -200,11 +214,22 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
         // Fire-and-forget methods: no dialog needed, respond immediately and move on.
         // Only confirm/select/input/editor require user interaction.
         const SILENT_METHODS = new Set([
-          "notify", "setStatus", "setTitle", "setWidget",
+          "setStatus", "setTitle", "setWidget",
           "setWorkingMessage", "set_editor_text", "pasteToEditor",
         ]);
+        if (method === "notify") {
+          // Store notification for the notification panel — never block as dialog
+          if (message) {
+            set((s) => ({
+              notifications: [
+                ...s.notifications,
+                { id, message, notifyType: notifyType ?? undefined, timestamp: Date.now() },
+              ].slice(-50), // keep last 50
+            }));
+          }
+          break;
+        }
         if (SILENT_METHODS.has(method)) {
-          // Acknowledge silently — GSD doesn't require a response for these
           break;
         }
         set((s) => ({
@@ -258,6 +283,8 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
   },
 
   clearMessages: () => set({ messages: [] }),
-
   clearError: () => set({ error: null }),
+  dismissNotification: (id: string) =>
+    set((s) => ({ notifications: s.notifications.filter((n) => n.id !== id) })),
+  clearNotifications: () => set({ notifications: [] }),
 }));

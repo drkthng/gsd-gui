@@ -50,7 +50,7 @@ export type RpcEvent =
   | { type: "agent_start" }
   | { type: "agent_end"; messages: GsdMessage[] }
   | { type: "turn_start" }
-  | { type: "turn_end" }
+  | { type: "turn_end"; message: GsdMessage; toolResults?: unknown[] }
   | { type: "message_start"; message: GsdMessage }
   | { type: "message_end"; message: GsdMessage }
   | { type: "message_update"; assistantMessageEvent: AssistantMessageEvent; message: GsdMessage }
@@ -72,10 +72,6 @@ export type RpcEvent =
       statusText?: string;
       payload?: unknown;
     }
-<<<<<<< HEAD
-=======
-  | { type: "session_state_changed"; payload: unknown }
->>>>>>> milestone/M011
   | { type: "error"; message: string };
 
 // ---------------------------------------------------------------------------

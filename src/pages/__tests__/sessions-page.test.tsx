@@ -61,7 +61,6 @@ const fakeSession: SessionInfo = {
   isActive: false,
 };
 
-<<<<<<< HEAD
 const defaultProjectState: {
   activeProject: SavedProject | null;
   projects: SavedProject[];
@@ -74,10 +73,6 @@ const defaultProjectState: {
   clearError: ReturnType<typeof vi.fn>;
 } = {
   activeProject: fakeProject,
-=======
-const defaultProjectState = {
-  activeProject: fakeProject as SavedProject | null,
->>>>>>> milestone/M011
   projects: [] as SavedProject[],
   isLoading: false,
   error: null,
