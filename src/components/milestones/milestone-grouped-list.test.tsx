@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it } from "vitest";
 import { renderWithProviders, screen, userEvent } from "@/test/test-utils";
 import { MilestoneGroupedList } from "./milestone-grouped-list";
 import type { StatusGroup } from "@/lib/milestone-filters";

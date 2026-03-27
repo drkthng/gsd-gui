@@ -62,7 +62,7 @@ const fakeSession: SessionInfo = {
 };
 
 const defaultProjectState = {
-  activeProject: fakeProject,
+  activeProject: fakeProject as SavedProject | null,
   projects: [] as SavedProject[],
   isLoading: false,
   error: null,
