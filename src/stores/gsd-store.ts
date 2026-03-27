@@ -5,6 +5,9 @@ import type {
   GsdExitPayload,
   GsdErrorPayload,
   SessionState,
+  GsdVersionInfo,
+  GsdCommand,
+  GetCommandsResponse,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -22,6 +25,7 @@ export interface GsdNotification {
   message: string;
   notifyType?: string;
   timestamp: number;
+  payload?: unknown;
 }
 
 export interface PendingUIRequest {
@@ -43,6 +47,14 @@ interface GsdState {
   activeProjectPath: string | null;
   backendReady: boolean;
   autoMode: boolean;
+  // Version / upgrade state
+  versionInfo: GsdVersionInfo | null;
+  upgradeInProgress: boolean;
+  upgradeError: string | null;
+  showRestartBanner: boolean;
+  // Slash command palette state
+  availableCommands: GsdCommand[];
+  commandsLoaded: boolean;
 
   // Actions
   connect: (projectPath: string) => Promise<void>;
@@ -61,6 +73,12 @@ interface GsdState {
   clearError: () => void;
   dismissNotification: (id: string) => void;
   clearNotifications: () => void;
+  // Version / upgrade actions
+  checkForUpdate: () => Promise<void>;
+  runUpgrade: () => Promise<void>;
+  dismissRestartBanner: () => void;
+  // Slash command palette actions
+  loadCommands: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +97,12 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
   activeProjectPath: null,
   backendReady: false,
   autoMode: false,
+  versionInfo: null,
+  upgradeInProgress: false,
+  upgradeError: null,
+  showRestartBanner: false,
+  availableCommands: [],
+  commandsLoaded: false,
 
   connect: async (projectPath: string) => {
     set({ sessionState: "connecting", activeProjectPath: projectPath, error: null });
@@ -103,6 +127,8 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
       sessionState: "disconnected",
       activeProjectPath: null,
       isStreaming: false,
+      availableCommands: [],
+      commandsLoaded: false,
     });
   },
 
@@ -247,10 +273,18 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
 
       case "extensions_ready":
         set({ backendReady: true });
+        // Non-blocking — fire and forget; errors are swallowed inside checkForUpdate
+        void get().checkForUpdate();
+        // Fetch all available slash commands for the palette
+        void get().loadCommands();
         break;
 
       case "response": {
-        if (!event.success) {
+        if (event.command === "get_commands" && event.success) {
+          const data = event.data as GetCommandsResponse | undefined;
+          const commands = data?.commands ?? [];
+          set({ availableCommands: commands, commandsLoaded: true });
+        } else if (!event.success) {
           set({ error: event.error ?? `Command ${event.command} failed` });
         }
         break;
@@ -263,11 +297,11 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
   },
 
   handleProcessExit: (_payload: GsdExitPayload) => {
-    set({ sessionState: "disconnected", isStreaming: false, backendReady: false, autoMode: false });
+    set({ sessionState: "disconnected", isStreaming: false, backendReady: false, autoMode: false, availableCommands: [], commandsLoaded: false });
   },
 
   handleProcessError: (payload: GsdErrorPayload) => {
-    set({ sessionState: "error", error: payload.message, isStreaming: false, backendReady: false, autoMode: false });
+    set({ sessionState: "error", error: payload.message, isStreaming: false, backendReady: false, autoMode: false, availableCommands: [], commandsLoaded: false });
   },
 
   respondToUIRequest: async (requestId: string, response: unknown) => {
@@ -287,4 +321,60 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
   dismissNotification: (id: string) =>
     set((s) => ({ notifications: s.notifications.filter((n) => n.id !== id) })),
   clearNotifications: () => set({ notifications: [] }),
+
+  loadCommands: async () => {
+    // Signal that commands are not yet loaded; response arrives as a 'response' event handled in handleGsdEvent
+    set({ commandsLoaded: false });
+    await client.sendCommand({ type: "get_commands" });
+  },
+
+  checkForUpdate: async () => {
+    try {
+      const info = await client.checkGsdVersion();
+      set({ versionInfo: info });
+      if (!info.updateAvailable) return;
+      // Skip if user already dismissed this exact version
+      if (
+        typeof localStorage !== "undefined" &&
+        localStorage.getItem("gsd-dismissed-update-version") === info.latest
+      ) {
+        return;
+      }
+      // Push a structured update notification — UI will render an Update & Restart button
+      const notifId = `gsd-update-${info.latest}`;
+      set((s) => ({
+        notifications: [
+          ...s.notifications,
+          {
+            id: notifId,
+            message: `GSD update available: ${info.installed} → ${info.latest}`,
+            notifyType: "update",
+            timestamp: Date.now(),
+            payload: { installed: info.installed, latest: info.latest },
+          },
+        ].slice(-50),
+      }));
+    } catch {
+      // Version check is non-blocking — swallow errors silently
+    }
+  },
+
+  runUpgrade: async () => {
+    set({ upgradeInProgress: true, upgradeError: null });
+    try {
+      await client.upgradeGsd();
+      // Reconnect session after successful upgrade
+      const { disconnect, reconnect } = get();
+      await disconnect();
+      await reconnect();
+      set({ showRestartBanner: true, upgradeInProgress: false });
+    } catch (err) {
+      set({
+        upgradeInProgress: false,
+        upgradeError: err instanceof Error ? err.message : String(err),
+      });
+    }
+  },
+
+  dismissRestartBanner: () => set({ showRestartBanner: false }),
 }));

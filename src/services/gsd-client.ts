@@ -23,6 +23,8 @@ import type {
   GsdErrorPayload,
   GsdFileChangedPayload,
   ProjectMetadata,
+  GsdVersionInfo,
+  GsdUpgradeProgressPayload,
 } from "@/lib/types";
 
 // Re-export types so downstream consumers import from gsd-client (D005 boundary)
@@ -40,6 +42,8 @@ export type {
   GsdErrorPayload,
   GsdFileChangedPayload,
   ProjectMetadata,
+  GsdVersionInfo,
+  GsdUpgradeProgressPayload,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -69,6 +73,12 @@ export interface GsdClient {
   // Project init & metadata detection
   initProject: (path: string) => Promise<void>;
   detectProjectMetadata: (path: string) => Promise<ProjectMetadata>;
+  // GSD version / upgrade
+  checkGsdVersion: () => Promise<GsdVersionInfo>;
+  upgradeGsd: () => Promise<void>;
+  onUpgradeProgress: (
+    handler: (payload: GsdUpgradeProgressPayload) => void,
+  ) => Promise<() => void>;
   // Event listeners (listen-based) — return unlisten functions
   onGsdEvent: (
     handler: (payload: GsdEventPayload) => void,
@@ -186,6 +196,23 @@ function createTauriClient(): GsdClient {
     detectProjectMetadata: async (path: string) => {
       const invoke = await getInvoke();
       return invoke<ProjectMetadata>("detect_project_metadata", { path });
+    },
+
+    checkGsdVersion: async () => {
+      const invoke = await getInvoke();
+      return invoke<GsdVersionInfo>("check_gsd_version");
+    },
+
+    upgradeGsd: async () => {
+      const invoke = await getInvoke();
+      return invoke("upgrade_gsd");
+    },
+
+    onUpgradeProgress: async (handler) => {
+      const listen = await getListen();
+      return listen<GsdUpgradeProgressPayload>("gsd-upgrade-progress", (event) =>
+        handler(event.payload),
+      );
     },
 
     onGsdEvent: async (handler) => {

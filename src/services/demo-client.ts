@@ -18,6 +18,7 @@ import type {
   GsdErrorPayload,
   GsdFileChangedPayload,
   ProjectMetadata,
+  GsdVersionInfo,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -510,6 +511,26 @@ export function createDemoClient(): GsdClient {
         hasGsd: false,
         hasPlanning: false,
       };
+    },
+
+    checkGsdVersion: async (): Promise<GsdVersionInfo> => {
+      // Demo: pretend installed == latest (no update available)
+      return {
+        installed: "0.0.0",
+        latest: "0.0.0",
+        updateAvailable: false,
+        changelogUrl: "",
+      };
+    },
+
+    upgradeGsd: async (): Promise<void> => {
+      // Demo: no-op
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    },
+
+    onUpgradeProgress: async (_handler) => {
+      // Demo: no real progress events
+      return () => {};
     },
 
     onGsdEvent: async (handler) => {
