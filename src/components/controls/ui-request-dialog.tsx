@@ -45,9 +45,13 @@ function RequestBody({ request, onRespond }: { request: PendingUIRequest; onResp
     case "input":
       return <InputBody message={message} onRespond={onRespond} />;
     case "notify":
-      return <ConfirmBody message={message} onRespond={onRespond} />;
+      // notify is handled silently in the store — only reaches here if somehow queued
+      onRespond(null);
+      return null;
     default:
-      return <ConfirmBody message={message} onRespond={onRespond} />;
+      // Unknown interactive method — dismiss silently
+      onRespond(null);
+      return null;
   }
 }
 

@@ -59,6 +59,32 @@ The Rust backend is intentionally thin — it manages child processes and file w
 | Testing | [Vitest](https://vitest.dev/) + [Testing Library](https://testing-library.com/) |
 | Backend | Rust (tokio, serde, notify-rs) |
 
+## Code Signing
+
+The CI pipeline currently produces **unsigned** installers. The binaries will trigger OS security warnings on first launch until signing is configured.
+
+### macOS — Apple Notarization
+
+To notarize macOS builds:
+1. Enroll in Apple Developer Program (https://developer.apple.com/programs/)
+2. Create a Developer ID Application certificate in Xcode / Apple Developer portal
+3. Export the certificate as a `.p12` file
+4. Add secrets to GitHub: `APPLE_CERTIFICATE` (base64 .p12), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (app-specific password), `APPLE_TEAM_ID`
+5. Enable in `tauri.conf.json` under `bundle.macOS.signingIdentity` and set `ENABLE_CODE_SIGNING=true` in the CI environment
+6. See: https://tauri.app/distribute/sign/macos/
+
+### Windows — Authenticode Signing
+
+To sign Windows builds:
+1. Obtain an Authenticode code signing certificate from a CA (DigiCert, Sectigo, etc.) or use Azure Trusted Signing
+2. Export as a `.pfx` file
+3. Add secrets to GitHub: `WINDOWS_CERTIFICATE` (base64 .pfx), `WINDOWS_CERTIFICATE_PASSWORD`
+4. See: https://tauri.app/distribute/sign/windows/
+
+### Linux
+
+Linux packages (.deb, .AppImage) do not require code signing to run, but can be signed for distribution via package repos.
+
 ## Getting Started
 
 ### Prerequisites

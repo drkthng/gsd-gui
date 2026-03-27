@@ -197,6 +197,16 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
 
       case "extension_ui_request": {
         const { id, method, message, notifyType, statusKey, payload } = event;
+        // Fire-and-forget methods: no dialog needed, respond immediately and move on.
+        // Only confirm/select/input/editor require user interaction.
+        const SILENT_METHODS = new Set([
+          "notify", "setStatus", "setTitle", "setWidget",
+          "setWorkingMessage", "set_editor_text", "pasteToEditor",
+        ]);
+        if (SILENT_METHODS.has(method)) {
+          // Acknowledge silently — GSD doesn't require a response for these
+          break;
+        }
         set((s) => ({
           pendingUIRequests: [
             ...s.pendingUIRequests,
