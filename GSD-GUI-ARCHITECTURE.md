@@ -1336,4 +1336,119 @@ gsd-gui/
 
 ---
 
+## Appendix C: Planned Features (Backlog)
+
+Features confirmed for future milestones, ordered by user priority.
+
+---
+
+### Feature: GSD Update Detection & One-Click Upgrade
+
+**Priority:** High — users need to know when a new GSD release is available and be able to upgrade without leaving the app.
+
+**User story:** GSD is distributed as an npm package (`gsd-pi`). When a new version ships, the running RPC process may behave differently from what the GUI expects. The user should be informed automatically and be able to upgrade and restart in one action.
+
+**Design:**
+
+1. **Version check on connect.** After `extensions_ready` fires, invoke a Rust command `check_gsd_version` that runs `npm show gsd-pi version` (or queries the npm registry API directly: `https://registry.npmjs.org/gsd-pi/latest`) to get the latest published version, then compares it against the version reported by the running process.
+
+2. **Version from running process.** Add a `get_state` RPC command call after `extensions_ready`. The response includes `model`, `sessionId`, etc. — GSD will also need to expose its own version here, or we parse it from `gsd --version` before spawning (pass the result alongside the connect call).
+
+3. **Update notification.** When installed < latest, push a notification to the existing `notifications[]` store with:
+   - `notifyType: "update"` (new type, rendered with a special color/icon in the panel)
+   - A structured payload carrying `installedVersion`, `latestVersion`, `changelog` (from npm registry `dist-tags`)
+
+4. **In-notification action button.** The notification popover item for update notifications renders an **"Update & Restart"** button inline. Clicking it:
+   - Invokes Rust command `upgrade_gsd` which shells out `npm install -g gsd-pi@latest`
+   - Shows a progress state in the notification (spinner, "Upgrading…")
+   - On success: invokes `stop_gsd_session` then `start_gsd_session` (reconnect with new binary)
+   - On failure: shows error text in the notification with a "View logs" link
+
+5. **Restart prompt.** If the upgrade succeeds but the GUI itself needs a Tauri restart (e.g. Rust-side changes), show a dedicated full-width banner above the chat: "GSD updated to v2.XX. Restart the app to apply changes." with a "Restart Now" button that calls `tauri::process::restart()`.
+
+**Rust surface:**
+```rust
+#[tauri::command]
+async fn check_gsd_version() -> Result<GsdVersionInfo, String>
+
+#[tauri::command]
+async fn upgrade_gsd(app: tauri::AppHandle) -> Result<(), String>
+
+pub struct GsdVersionInfo {
+    installed: String,   // from `gsd --version`
+    latest: String,      // from npm registry
+    update_available: bool,
+    changelog_url: String,
+}
+```
+
+**TypeScript surface:**
+```ts
+// New RpcCommand
+| { type: "get_version" }
+
+// New notification type in store
+| { notifyType: "update"; payload: { installed: string; latest: string; upgradeCommand: string } }
+```
+
+**Key constraints:**
+- Version check must be non-blocking — fire after `extensions_ready`, never delay session startup
+- `npm install -g` requires the same Node.js that spawned gsd — resolve `node` binary path from the gsd process's environment
+- Windows: use `npm.cmd` not `npm`; shell via `cmd /c npm install -g gsd-pi@latest`
+- Check interval: once per app session (on connect), not polling
+- The update banner must be dismissible per-session (store `dismissedUpdateVersion` in localStorage)
+
+---
+
+### Feature: Slash Command Palette (TUI Parity)
+
+**Priority:** High — `/gsd`, `/gsd auto`, `/gsd status` etc. are the primary way users interact with GSD in the terminal. The GUI chat input should offer the same discoverability.
+
+**User story:** When the user types `/` in the chat input, a dropdown appears above the input showing matching slash commands, skills, and prompt templates — identical to the TUI's autocomplete. Selecting one populates the input or sends immediately.
+
+**Design:**
+
+1. **Command discovery.** After `extensions_ready`, send `{ type: "get_commands" }` via RPC. The response carries a `commands[]` array with `name`, `description`, `source` (`extension` | `prompt` | `skill`). Store this in `gsd-store` as `availableCommands: GsdCommand[]`.
+
+2. **Trigger.** In `MessageInput`, watch the textarea value. When it starts with `/` and the caret is still in the command name portion (no space yet, or space but still within the command token), show the palette.
+
+3. **Palette UI.** A `CommandPalette` component rendered as a floating panel anchored above the textarea (absolute position, `bottom: 100%`):
+   - Filters `availableCommands` by the current `/prefix` typed
+   - Groups by source: **GSD commands** (extension), **Prompt templates** (prompt), **Skills** (skill)
+   - Each row: command name + description + source badge
+   - Keyboard: `↑`/`↓` to navigate, `Enter` or `Tab` to select, `Escape` to dismiss
+   - Mouse: click to select
+
+4. **Selection behavior:**
+   - Commands with no arguments (e.g. `/gsd auto`): fill the input and send immediately
+   - Commands that take arguments (e.g. `/gsd steer <text>`): fill the command token and place cursor after it, waiting for argument input
+   - Prompt templates: fill the full template text into the input
+
+5. **RPC `get_commands` command.** Already defined in GSD's RPC protocol (`rpc-mode.js` has a `get_commands` case). Add it to our `RpcCommand` type and call it after connection.
+
+**Component structure:**
+```
+src/components/chat/
+  message-input.tsx          ← add palette trigger logic
+  command-palette.tsx        ← new: floating list component
+  command-palette.test.tsx   ← new: keyboard nav, filter, selection tests
+```
+
+**Store additions:**
+```ts
+availableCommands: GsdCommand[];
+// loaded via: sendCommand({ type: "get_commands" }) after extensions_ready
+// response: { type: "response", command: "get_commands", data: { commands: [...] } }
+```
+
+**Key constraints:**
+- Palette must not intercept non-`/` input (don't show for regular messages)
+- Must handle empty command list gracefully (no palette if no commands loaded yet)
+- `get_commands` response arrives async — palette shows partial results as they load if needed
+- Command names from GSD include the `/` prefix already (e.g. `"/gsd"`) — normalize before display
+- Skills are invoked as `/skill:name` — show them under a "Skills" group with the correct invocation syntax
+- Accessible: `role="listbox"` on the palette, `role="option"` on each row, `aria-activedescendant` tracking
+
+---
+
 *This document serves as the complete specification for building gsd-gui. Each phase prompt is self-contained and ready for a GSD agent to execute.*
