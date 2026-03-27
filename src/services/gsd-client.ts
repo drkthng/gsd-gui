@@ -22,6 +22,7 @@ import type {
   GsdExitPayload,
   GsdErrorPayload,
   GsdFileChangedPayload,
+  ProjectMetadata,
 } from "@/lib/types";
 
 // Re-export types so downstream consumers import from gsd-client (D005 boundary)
@@ -38,6 +39,7 @@ export type {
   GsdExitPayload,
   GsdErrorPayload,
   GsdFileChangedPayload,
+  ProjectMetadata,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -64,6 +66,9 @@ export interface GsdClient {
   readPreferences: (projectPath: string) => Promise<PreferencesData>;
   writePreferences: (projectPath: string, data: PreferencesData) => Promise<void>;
   listActivity: (projectPath: string) => Promise<ActivityEntry[]>;
+  // Project init & metadata detection
+  initProject: (path: string) => Promise<void>;
+  detectProjectMetadata: (path: string) => Promise<ProjectMetadata>;
   // Event listeners (listen-based) — return unlisten functions
   onGsdEvent: (
     handler: (payload: GsdEventPayload) => void,
@@ -171,6 +176,16 @@ function createTauriClient(): GsdClient {
     listActivity: async (projectPath: string) => {
       const invoke = await getInvoke();
       return invoke<ActivityEntry[]>("list_activity_cmd", { projectPath });
+    },
+
+    initProject: async (path: string) => {
+      const invoke = await getInvoke();
+      return invoke("init_project", { path });
+    },
+
+    detectProjectMetadata: async (path: string) => {
+      const invoke = await getInvoke();
+      return invoke<ProjectMetadata>("detect_project_metadata", { path });
     },
 
     onGsdEvent: async (handler) => {

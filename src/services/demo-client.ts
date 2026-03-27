@@ -17,6 +17,7 @@ import type {
   GsdExitPayload,
   GsdErrorPayload,
   GsdFileChangedPayload,
+  ProjectMetadata,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -493,6 +494,23 @@ export function createDemoClient(): GsdClient {
 
     listActivity: async (_projectPath: string): Promise<ActivityEntry[]> =>
       demoActivity,
+
+    initProject: async (_path: string): Promise<void> => {
+      // Simulate gsd init taking ~300ms
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    },
+
+    detectProjectMetadata: async (path: string): Promise<ProjectMetadata> => {
+      // Derive a plausible name from the last path segment
+      const basename = path.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? "project";
+      return {
+        detectedName: basename,
+        isGit: true,
+        language: "TypeScript",
+        hasGsd: false,
+        hasPlanning: false,
+      };
+    },
 
     onGsdEvent: async (handler) => {
       eventHandlers.gsdEvent.push(handler);

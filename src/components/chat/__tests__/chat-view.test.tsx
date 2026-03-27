@@ -4,6 +4,14 @@ import { ChatMessage } from "../chat-message";
 import { ChatView } from "../chat-view";
 import { useGsdStore } from "@/stores/gsd-store";
 
+// ---------------------------------------------------------------------------
+// Mock shiki to prevent dynamic import failures in JSDOM.
+// ---------------------------------------------------------------------------
+vi.mock("shiki", () => ({
+  codeToHtml: async () =>
+    '<pre class="shiki"><code><span>highlighted</span></code></pre>',
+}));
+
 const { mockClient } = vi.hoisted(() => {
   const mockClient = {
     startSession: vi.fn(), stopSession: vi.fn(), sendCommand: vi.fn(),
@@ -49,7 +57,10 @@ describe("ChatMessage", () => {
     renderWithProviders(
       <ChatMessage message={{ role: "assistant", content: "```js\nconsole.log('hi')\n```", timestamp: Date.now() }} />
     );
-    expect(screen.getByText("console.log('hi')")).toBeInTheDocument();
+    // The CSS fallback <pre><code> is present synchronously (shiki is async).
+    const code = document.querySelector("pre code");
+    expect(code).toBeTruthy();
+    expect(code?.textContent).toContain("console.log");
   });
 });
 

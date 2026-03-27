@@ -25,6 +25,14 @@ const { mockClient } = vi.hoisted(() => {
     onProcessExit: vi.fn().mockResolvedValue(vi.fn()),
     onProcessError: vi.fn().mockResolvedValue(vi.fn()),
     onFileChanged: vi.fn().mockResolvedValue(vi.fn()),
+    initProject: vi.fn().mockResolvedValue(undefined),
+    detectProjectMetadata: vi.fn().mockResolvedValue({
+      detectedName: null,
+      language: null,
+      hasGsd: false,
+      hasPlanning: false,
+      isGit: false,
+    }),
   };
   return { mockClient };
 });
@@ -45,6 +53,13 @@ describe("ProjectGallery", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockClient.getSavedProjects.mockResolvedValue([]);
+    mockClient.detectProjectMetadata.mockResolvedValue({
+      detectedName: null,
+      language: null,
+      hasGsd: false,
+      hasPlanning: false,
+      isGit: false,
+    });
     useProjectStore.setState({
       projects: [],
       activeProject: null,
@@ -120,5 +135,100 @@ describe("ProjectGallery", () => {
 
     // Verify project was selected in the store
     expect(useProjectStore.getState().activeProject?.id).toBe("p1");
+  });
+
+  // --- New T03 tests ---
+
+  it("New Project button opens wizard", async () => {
+    const projects = [makeProject("p1", "gsd-gui")];
+    useProjectStore.setState({ projects });
+
+    renderWithProviders(<ProjectGallery />, { initialRoute: "/projects" });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /new project/i })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /new project/i }));
+
+    // Wizard dialog should open — step 1 heading is visible
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /project name/i })).toBeInTheDocument();
+    });
+  });
+
+  it("Import button detects metadata and pre-fills wizard", async () => {
+    const projects = [makeProject("p1", "gsd-gui")];
+    mockClient.getSavedProjects.mockResolvedValue(projects);
+    useProjectStore.setState({ projects });
+
+    // Mock folder picker to return a path
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    vi.mocked(open).mockResolvedValueOnce("/home/user/my-app" as never);
+
+    // Mock detection to return metadata with a name and language
+    mockClient.detectProjectMetadata.mockResolvedValueOnce({
+      detectedName: "my-app",
+      language: "TypeScript",
+      hasGsd: false,
+      hasPlanning: false,
+      isGit: true,
+    });
+
+    renderWithProviders(<ProjectGallery />, { initialRoute: "/projects" });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^import$/i })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /^import$/i }));
+
+    // Wizard should open pre-filled with "my-app"
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /project name/i })).toBeInTheDocument();
+    });
+
+    // The name field should be pre-filled
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: /name/i })).toHaveValue("my-app");
+    });
+  });
+
+  it("wizard submit calls initProject for new project and navigates to /milestones", async () => {
+    const projects = [makeProject("p1", "gsd-gui")];
+    useProjectStore.setState({ projects });
+
+    const savedProject = makeProject("p2", "new-project");
+    mockClient.addProject.mockResolvedValueOnce(savedProject);
+    mockClient.getSavedProjects.mockResolvedValue([...projects, savedProject]);
+
+    renderWithProviders(<ProjectGallery />, { initialRoute: "/projects" });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /new project/i })).toBeInTheDocument();
+    });
+
+    // Open wizard in "new" mode
+    await userEvent.click(screen.getByRole("button", { name: /new project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /project name/i })).toBeInTheDocument();
+    });
+
+    // Fill in name and navigate through all 6 steps
+    await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "new-project");
+    for (let i = 0; i < 5; i++) {
+      await userEvent.click(screen.getByRole("button", { name: /next/i }));
+    }
+
+    // Submit
+    await userEvent.click(screen.getByRole("button", { name: /create project/i }));
+
+    await waitFor(() => {
+      expect(mockClient.initProject).toHaveBeenCalled();
+      expect(mockClient.addProject).toHaveBeenCalled();
+    });
+
+    // Check navigation happened — activeProject set means selectProject was called
+    await waitFor(() => {
+      expect(useProjectStore.getState().activeProject?.id).toBe("p2");
+    });
   });
 });

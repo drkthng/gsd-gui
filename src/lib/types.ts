@@ -251,3 +251,23 @@ export type SessionState =
   | "streaming"
   | "disconnected"
   | "error";
+
+// ---------------------------------------------------------------------------
+// Project metadata (detected by detect_project_metadata Tauri command)
+// Mirrors: src-tauri/src/gsd_detect.rs — ProjectMetadata
+// serde(rename_all = "camelCase")
+// ---------------------------------------------------------------------------
+
+/** Filesystem metadata auto-detected for a candidate project folder. */
+export interface ProjectMetadata {
+  /** Project name from package.json `name` field, or null if absent. */
+  detectedName: string | null;
+  /** True if a .git/ directory exists at the project root. */
+  isGit: boolean;
+  /** Inferred language: "TypeScript", "JavaScript", or null. */
+  language: string | null;
+  /** True if a .gsd/ directory exists at the project root. */
+  hasGsd: boolean;
+  /** True if a .planning/ directory exists at the project root. */
+  hasPlanning: boolean;
+}

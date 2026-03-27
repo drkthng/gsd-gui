@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FolderKanban, FolderOpen, Search } from "lucide-react";
+import { FolderKanban, FolderOpen, Plus, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LoadingState } from "@/components/shared/loading-state";
 import { ProjectCard } from "./project-card";
+import { NewProjectWizard } from "./new-project-wizard";
 import { useProjectStore } from "@/stores/project-store";
+import { useImportDetection } from "@/hooks/use-import-detection";
+import { createGsdClient } from "@/services/gsd-client";
+import type { WizardFormData } from "./new-project-wizard";
+
+const client = createGsdClient();
 
 /** Safely open a native folder picker. Falls back to prompt() in browser mode. */
 async function openDirectoryPicker(): Promise<string | null> {
@@ -41,21 +47,66 @@ export function ProjectGallery() {
   const [search, setSearch] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
 
+  // Wizard state
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardInitialData, setWizardInitialData] = useState<Partial<WizardFormData>>({});
+  const [wizardMode, setWizardMode] = useState<"new" | "import">("new");
+
+  const importDetection = useImportDetection();
+
   // Load projects on mount
   useEffect(() => {
     loadProjects();
   }, [loadProjects]);
 
+  const handleNewProject = () => {
+    setWizardMode("new");
+    setWizardInitialData({});
+    setWizardOpen(true);
+  };
+
   const handleImportProject = async () => {
     setImportError(null);
     try {
       const selected = await openDirectoryPicker();
-      if (selected) {
-        await addProject(selected);
-      }
+      if (!selected) return;
+
+      // Detect metadata to pre-fill wizard (returns result directly)
+      const meta = await importDetection.detect(selected);
+
+      // Map metadata to WizardFormData partial
+      const prefilled: Partial<WizardFormData> = {
+        folder: selected,
+        ...(meta?.detectedName ? { name: meta.detectedName } : {}),
+        ...(meta?.language ? { techStack: [meta.language] } : {}),
+      };
+
+      setWizardMode("import");
+      setWizardInitialData(prefilled);
+      setWizardOpen(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setImportError(msg);
+    }
+  };
+
+  const handleWizardSubmit = async (data: WizardFormData) => {
+    setImportError(null);
+    try {
+      if (wizardMode === "new") {
+        // Run gsd init then register the project
+        await client.initProject(data.folder);
+      }
+      // Register project in the store (both new and import)
+      const saved = await addProject(data.folder, data.description || undefined);
+      selectProject(saved);
+      setWizardOpen(false);
+      navigate("/milestones");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setImportError(msg);
+      // Re-throw so wizard can handle it if needed
+      throw err;
     }
   };
 
@@ -85,15 +136,28 @@ export function ProjectGallery() {
         <EmptyState
           icon={FolderKanban}
           title="No projects"
-          description="Import an existing GSD project to get started."
+          description="Import an existing GSD project or create a new one to get started."
         />
-        <Button onClick={handleImportProject}>
-          <FolderOpen className="mr-2 h-4 w-4" />
-          Import Project
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleNewProject}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Project
+          </Button>
+          <Button variant="outline" onClick={handleImportProject}>
+            <FolderOpen className="mr-2 h-4 w-4" />
+            Import Project
+          </Button>
+        </div>
         {importError && (
           <p className="text-sm text-destructive">{importError}</p>
         )}
+        <NewProjectWizard
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          onSubmit={handleWizardSubmit}
+          onPickFolder={openDirectoryPicker}
+          initialData={wizardInitialData}
+        />
       </div>
     );
   }
@@ -110,6 +174,10 @@ export function ProjectGallery() {
             className="pl-9"
           />
         </div>
+        <Button size="sm" onClick={handleNewProject}>
+          <Plus className="mr-1 h-4 w-4" />
+          New Project
+        </Button>
         <Button variant="outline" size="sm" onClick={handleImportProject}>
           <FolderOpen className="mr-1 h-4 w-4" />
           Import
@@ -131,6 +199,13 @@ export function ProjectGallery() {
           />
         ))}
       </div>
+      <NewProjectWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        onSubmit={handleWizardSubmit}
+        onPickFolder={openDirectoryPicker}
+        initialData={wizardInitialData}
+      />
     </div>
   );
 }

@@ -1,4 +1,6 @@
 mod activity_parser;
+mod gsd_detect;
+mod gsd_init;
 mod gsd_parser;
 mod gsd_process;
 mod gsd_query;
@@ -244,6 +246,20 @@ async fn list_activity_cmd(
     activity_parser::list_activity_entries(&project_path)
 }
 
+/// Initialize a new GSD project at the given path by running `gsd init <path>`.
+/// Creates the directory if it does not exist. Returns an error string on failure.
+#[tauri::command]
+fn init_project(path: String) -> Result<(), String> {
+    gsd_init::run_gsd_init(&path)
+}
+
+/// Detect project metadata from the filesystem at the given path.
+/// Checks for .git/, package.json (name + TypeScript detection), .gsd/, .planning/.
+#[tauri::command]
+fn detect_project_metadata(path: String) -> Result<gsd_detect::ProjectMetadata, String> {
+    Ok(gsd_detect::detect_project_metadata(&path))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -264,7 +280,9 @@ pub fn run() {
             list_project_sessions_cmd,
             read_preferences_cmd,
             write_preferences_cmd,
-            list_activity_cmd
+            list_activity_cmd,
+            init_project,
+            detect_project_metadata
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
