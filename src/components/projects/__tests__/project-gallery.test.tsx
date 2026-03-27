@@ -156,7 +156,50 @@ describe("ProjectGallery", () => {
     });
   });
 
-  it("Import button detects metadata and pre-fills wizard", async () => {
+  it("Import of a GSD project skips wizard and navigates directly to milestones", async () => {
+    const projects = [makeProject("p1", "gsd-gui")];
+    mockClient.getSavedProjects.mockResolvedValue(projects);
+    useProjectStore.setState({ projects });
+
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    vi.mocked(open).mockResolvedValueOnce("/home/user/my-gsd-project" as never);
+
+    const savedProject = makeProject("p2", "my-gsd-project");
+    mockClient.addProject.mockResolvedValueOnce(savedProject);
+
+    // Detection shows hasGsd: true — this is the fast path
+    mockClient.detectProjectMetadata.mockResolvedValueOnce({
+      detectedName: "my-gsd-project",
+      language: null,
+      hasGsd: true,
+      hasPlanning: false,
+      isGit: true,
+    });
+
+    renderWithProviders(<ProjectGallery />, { initialRoute: "/projects" });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^import$/i })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /^import$/i }));
+
+    // Wizard must NOT have opened
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: /project name/i })).not.toBeInTheDocument();
+    });
+
+    // addProject called directly with the path, no wizard steps needed
+    await waitFor(() => {
+      expect(mockClient.addProject).toHaveBeenCalledWith("/home/user/my-gsd-project", undefined);
+    });
+
+    // Project selected and navigated away
+    await waitFor(() => {
+      expect(useProjectStore.getState().activeProject?.id).toBe("p2");
+    });
+  });
+
+  it("Import of a non-GSD project opens wizard pre-filled with detected metadata", async () => {
     const projects = [makeProject("p1", "gsd-gui")];
     mockClient.getSavedProjects.mockResolvedValue(projects);
     useProjectStore.setState({ projects });
@@ -165,7 +208,7 @@ describe("ProjectGallery", () => {
     const { open } = await import("@tauri-apps/plugin-dialog");
     vi.mocked(open).mockResolvedValueOnce("/home/user/my-app" as never);
 
-    // Mock detection to return metadata with a name and language
+    // Detection returns hasGsd: false — wizard needed
     mockClient.detectProjectMetadata.mockResolvedValueOnce({
       detectedName: "my-app",
       language: "TypeScript",
@@ -188,7 +231,7 @@ describe("ProjectGallery", () => {
 
     // The name field should be pre-filled
     await waitFor(() => {
-      expect(screen.getByRole("textbox", { name: /name/i })).toHaveValue("my-app");
+      expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("my-app");
     });
   });
 

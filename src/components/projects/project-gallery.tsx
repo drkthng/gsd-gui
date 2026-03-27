@@ -71,10 +71,18 @@ export function ProjectGallery() {
       const selected = await openDirectoryPicker();
       if (!selected) return;
 
-      // Detect metadata to pre-fill wizard (returns result directly)
+      // Detect metadata to decide whether we need the wizard at all
       const meta = await importDetection.detect(selected);
 
-      // Map metadata to WizardFormData partial
+      // GSD project — everything we need is already on disk. Skip the wizard.
+      if (meta?.hasGsd) {
+        const saved = await addProject(selected);
+        selectProject(saved);
+        navigate("/milestones");
+        return;
+      }
+
+      // Non-GSD project — open wizard pre-filled with what we detected
       const prefilled: Partial<WizardFormData> = {
         folder: selected,
         ...(meta?.detectedName ? { name: meta.detectedName } : {}),
