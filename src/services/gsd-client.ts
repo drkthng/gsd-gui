@@ -1,9 +1,12 @@
 // GSD Client — IPC abstraction layer
 // This is the ONLY file in the frontend that may import @tauri-apps/api (D005).
 // When running outside Tauri (browser dev mode), a demo client is used instead.
+//
+// IMPORTANT: @tauri-apps/api is imported DYNAMICALLY inside createTauriClient()
+// to avoid crashing in browser mode. The module-level code in @tauri-apps/api/core
+// accesses window.__TAURI_INTERNALS__ which doesn't exist outside Tauri, causing
+// "Cannot read properties of undefined (reading 'transformCallback')" errors.
 
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { createDemoClient } from "./demo-client";
 
 import type {
@@ -12,10 +15,14 @@ import type {
   ProjectInfo,
   SavedProject,
   MilestoneInfo,
+  SessionInfo,
+  PreferencesData,
+  ActivityEntry,
   GsdEventPayload,
   GsdExitPayload,
   GsdErrorPayload,
   GsdFileChangedPayload,
+  ProjectMetadata,
 } from "@/lib/types";
 
 // Re-export types so downstream consumers import from gsd-client (D005 boundary)
@@ -25,10 +32,14 @@ export type {
   ProjectInfo,
   SavedProject,
   MilestoneInfo,
+  SessionInfo,
+  PreferencesData,
+  ActivityEntry,
   GsdEventPayload,
   GsdExitPayload,
   GsdErrorPayload,
   GsdFileChangedPayload,
+  ProjectMetadata,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -50,6 +61,14 @@ export interface GsdClient {
   getSavedProjects: () => Promise<SavedProject[]>;
   addProject: (projectPath: string, description?: string) => Promise<SavedProject>;
   removeProject: (projectId: string) => Promise<void>;
+  // Session / preferences / activity parsers
+  listSessions: (projectPath: string) => Promise<SessionInfo[]>;
+  readPreferences: (projectPath: string) => Promise<PreferencesData>;
+  writePreferences: (projectPath: string, data: PreferencesData) => Promise<void>;
+  listActivity: (projectPath: string) => Promise<ActivityEntry[]>;
+  // Project init & metadata detection
+  initProject: (path: string) => Promise<void>;
+  detectProjectMetadata: (path: string) => Promise<ProjectMetadata>;
   // Event listeners (listen-based) — return unlisten functions
   onGsdEvent: (
     handler: (payload: GsdEventPayload) => void,
@@ -79,57 +98,123 @@ function isTauri(): boolean {
 // ---------------------------------------------------------------------------
 
 function createTauriClient(): GsdClient {
+  // Lazy-load Tauri APIs to avoid module-level crashes in browser mode
+  const getInvoke = () => import("@tauri-apps/api/core").then((m) => m.invoke);
+  const getListen = () => import("@tauri-apps/api/event").then((m) => m.listen);
+
   return {
-    startSession: (projectPath: string) =>
-      invoke("start_gsd_session", { projectPath }),
+    startSession: async (projectPath: string) => {
+      const invoke = await getInvoke();
+      return invoke("start_gsd_session", { projectPath });
+    },
 
-    stopSession: () => invoke("stop_gsd_session"),
+    stopSession: async () => {
+      const invoke = await getInvoke();
+      return invoke("stop_gsd_session");
+    },
 
-    sendCommand: (command: RpcCommand) =>
-      invoke("send_gsd_command", { command: JSON.stringify(command) }),
+    sendCommand: async (command: RpcCommand) => {
+      const invoke = await getInvoke();
+      return invoke("send_gsd_command", { command: JSON.stringify(command) });
+    },
 
-    queryState: (projectPath: string) =>
-      invoke<QuerySnapshot>("query_gsd_state", { projectPath }),
+    queryState: async (projectPath: string) => {
+      const invoke = await getInvoke();
+      return invoke<QuerySnapshot>("query_gsd_state", { projectPath });
+    },
 
-    listProjects: (scanPath: string) =>
-      invoke<ProjectInfo[]>("list_projects", { scanPath }),
+    listProjects: async (scanPath: string) => {
+      const invoke = await getInvoke();
+      return invoke<ProjectInfo[]>("list_projects", { scanPath });
+    },
 
-    startFileWatcher: (projectPath: string) =>
-      invoke("start_file_watcher", { projectPath }),
+    startFileWatcher: async (projectPath: string) => {
+      const invoke = await getInvoke();
+      return invoke("start_file_watcher", { projectPath });
+    },
 
-    stopFileWatcher: () => invoke("stop_file_watcher"),
+    stopFileWatcher: async () => {
+      const invoke = await getInvoke();
+      return invoke("stop_file_watcher");
+    },
 
-    parseProjectMilestones: (projectPath: string) =>
-      invoke<MilestoneInfo[]>("parse_project_milestones", { projectPath }),
+    parseProjectMilestones: async (projectPath: string) => {
+      const invoke = await getInvoke();
+      return invoke<MilestoneInfo[]>("parse_project_milestones", { projectPath });
+    },
 
-    getSavedProjects: () =>
-      invoke<SavedProject[]>("get_saved_projects"),
+    getSavedProjects: async () => {
+      const invoke = await getInvoke();
+      return invoke<SavedProject[]>("get_saved_projects");
+    },
 
-    addProject: (projectPath: string, description?: string) =>
-      invoke<SavedProject>("add_project", { projectPath, description: description ?? null }),
+    addProject: async (projectPath: string, description?: string) => {
+      const invoke = await getInvoke();
+      return invoke<SavedProject>("add_project", { projectPath, description: description ?? null });
+    },
 
-    removeProject: (projectId: string) =>
-      invoke("remove_project", { projectId }),
+    removeProject: async (projectId: string) => {
+      const invoke = await getInvoke();
+      return invoke("remove_project", { projectId });
+    },
 
-    onGsdEvent: (handler) =>
-      listen<GsdEventPayload>("gsd-event", (event) =>
+    listSessions: async (projectPath: string) => {
+      const invoke = await getInvoke();
+      return invoke<SessionInfo[]>("list_project_sessions_cmd", { projectPath });
+    },
+
+    readPreferences: async (projectPath: string) => {
+      const invoke = await getInvoke();
+      return invoke<PreferencesData>("read_preferences_cmd", { projectPath });
+    },
+
+    writePreferences: async (projectPath: string, data: PreferencesData) => {
+      const invoke = await getInvoke();
+      return invoke("write_preferences_cmd", { projectPath, prefs: data });
+    },
+
+    listActivity: async (projectPath: string) => {
+      const invoke = await getInvoke();
+      return invoke<ActivityEntry[]>("list_activity_cmd", { projectPath });
+    },
+
+    initProject: async (path: string) => {
+      const invoke = await getInvoke();
+      return invoke("init_project", { path });
+    },
+
+    detectProjectMetadata: async (path: string) => {
+      const invoke = await getInvoke();
+      return invoke<ProjectMetadata>("detect_project_metadata", { path });
+    },
+
+    onGsdEvent: async (handler) => {
+      const listen = await getListen();
+      return listen<GsdEventPayload>("gsd-event", (event) =>
         handler(event.payload),
-      ).then((unlisten) => unlisten),
+      );
+    },
 
-    onProcessExit: (handler) =>
-      listen<GsdExitPayload>("gsd-process-exit", (event) =>
+    onProcessExit: async (handler) => {
+      const listen = await getListen();
+      return listen<GsdExitPayload>("gsd-process-exit", (event) =>
         handler(event.payload),
-      ).then((unlisten) => unlisten),
+      );
+    },
 
-    onProcessError: (handler) =>
-      listen<GsdErrorPayload>("gsd-process-error", (event) =>
+    onProcessError: async (handler) => {
+      const listen = await getListen();
+      return listen<GsdErrorPayload>("gsd-process-error", (event) =>
         handler(event.payload),
-      ).then((unlisten) => unlisten),
+      );
+    },
 
-    onFileChanged: (handler) =>
-      listen<GsdFileChangedPayload>("gsd-file-changed", (event) =>
+    onFileChanged: async (handler) => {
+      const listen = await getListen();
+      return listen<GsdFileChangedPayload>("gsd-file-changed", (event) =>
         handler(event.payload),
-      ).then((unlisten) => unlisten),
+      );
+    },
   };
 }
 

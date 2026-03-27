@@ -34,13 +34,25 @@ export type RpcEvent =
   | { type: "tool_execution_start"; tool: string; id: string }
   | { type: "tool_execution_end"; tool: string; id: string; success: boolean }
   | {
+      type: "response";
+      command: string;
+      success: boolean;
+      data?: unknown;
+      error?: string;
+    }
+  | { type: "extensions_ready" }
+  | {
       type: "extension_ui_request";
-      request_id: string;
-      kind: string;
-      payload: unknown;
+      id: string;
+      method: string;
+      message?: string;
+      notifyType?: string;
+      statusKey?: string;
+      payload?: unknown;
     }
   | { type: "session_state_changed"; payload: unknown }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: string; [key: string]: unknown };
 
 // ---------------------------------------------------------------------------
 // Query types
@@ -154,6 +166,43 @@ export interface SessionInfo {
 }
 
 // ---------------------------------------------------------------------------
+// Preferences data (from preferences.md YAML frontmatter)
+// Keys are camelCase matching Rust serde(rename_all = "camelCase") output.
+// Mirrors: src-tauri/src/preferences_parser.rs — returns serde_json::Value
+// ---------------------------------------------------------------------------
+
+export interface PreferencesData {
+  version?: number;
+  mode?: string;
+  git?: {
+    isolation?: string;
+    main_branch?: string;
+    auto_push?: boolean;
+  };
+  custom_instructions?: string[];
+  always_use_skills?: string[];
+  prefer_skills?: string[];
+  avoid_skills?: string[];
+  [key: string]: unknown; // allow arbitrary YAML fields — keys are snake_case from YAML source
+}
+
+// ---------------------------------------------------------------------------
+// Activity entry (from activity JSONL files)
+// Mirrors: src-tauri/src/activity_parser.rs — ActivityEntry
+// serde(rename_all = "camelCase")
+// ---------------------------------------------------------------------------
+
+export interface ActivityEntry {
+  id: string;
+  action: string; // "plan-slice", "execute-task", etc.
+  milestoneId: string;
+  sliceId: string | null;
+  taskId: string | null;
+  timestamp: string; // ISO
+  messageCount: number;
+}
+
+// ---------------------------------------------------------------------------
 // Process event payloads
 // Mirrors: src-tauri/src/gsd_process.rs
 // No rename_all — fields are single-word, so no casing issue.
@@ -202,3 +251,23 @@ export type SessionState =
   | "streaming"
   | "disconnected"
   | "error";
+
+// ---------------------------------------------------------------------------
+// Project metadata (detected by detect_project_metadata Tauri command)
+// Mirrors: src-tauri/src/gsd_detect.rs — ProjectMetadata
+// serde(rename_all = "camelCase")
+// ---------------------------------------------------------------------------
+
+/** Filesystem metadata auto-detected for a candidate project folder. */
+export interface ProjectMetadata {
+  /** Project name from package.json `name` field, or null if absent. */
+  detectedName: string | null;
+  /** True if a .git/ directory exists at the project root. */
+  isGit: boolean;
+  /** Inferred language: "TypeScript", "JavaScript", or null. */
+  language: string | null;
+  /** True if a .gsd/ directory exists at the project root. */
+  hasGsd: boolean;
+  /** True if a .planning/ directory exists at the project root. */
+  hasPlanning: boolean;
+}

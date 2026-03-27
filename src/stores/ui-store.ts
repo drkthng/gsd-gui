@@ -7,6 +7,7 @@ type View =
   | "milestones"
   | "timeline"
   | "costs"
+  | "sessions"
   | "settings"
   | "pro-tools";
 

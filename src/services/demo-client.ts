@@ -10,10 +10,14 @@ import type {
   MilestoneInfo,
   QuerySnapshot,
   ProjectInfo,
+  SessionInfo,
+  PreferencesData,
+  ActivityEntry,
   GsdEventPayload,
   GsdExitPayload,
   GsdErrorPayload,
   GsdFileChangedPayload,
+  ProjectMetadata,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -195,6 +199,136 @@ const demoMilestones: MilestoneInfo[] = [
   },
 ];
 
+const demoSessions: SessionInfo[] = [
+  {
+    id: "sess-abc123",
+    name: "M003/S02/T02 — Streaming response handler",
+    messageCount: 42,
+    cost: 1.85,
+    createdAt: "2026-03-25T14:00:00Z",
+    lastActiveAt: "2026-03-25T15:30:00Z",
+    preview: "Implementing the streaming response handler for the chat interface...",
+    parentId: null,
+    isActive: true,
+  },
+  {
+    id: "sess-def456",
+    name: "M003/S01/T03 — Import dialog",
+    messageCount: 28,
+    cost: 0.95,
+    createdAt: "2026-03-24T10:00:00Z",
+    lastActiveAt: "2026-03-24T11:15:00Z",
+    preview: "Building the project import dialog with file picker integration...",
+    parentId: null,
+    isActive: false,
+  },
+  {
+    id: "sess-ghi789",
+    name: "M002/S03/T03 — useGsdEvents hook",
+    messageCount: 55,
+    cost: 2.10,
+    createdAt: "2026-03-22T09:00:00Z",
+    lastActiveAt: "2026-03-22T11:45:00Z",
+    preview: "Creating the useGsdEvents React hook for real-time event streaming...",
+    parentId: null,
+    isActive: false,
+  },
+  {
+    id: "sess-jkl012",
+    name: "Quick bug fix — sidebar collapse",
+    messageCount: 12,
+    cost: 0.35,
+    createdAt: "2026-03-21T16:00:00Z",
+    lastActiveAt: "2026-03-21T16:20:00Z",
+    preview: "The sidebar collapse animation is janky on first toggle...",
+    parentId: null,
+    isActive: false,
+  },
+];
+
+const demoPreferences: PreferencesData = {
+  version: 1,
+  mode: "auto",
+  git: {
+    isolation: "worktree",
+    main_branch: "main",
+    auto_push: false,
+  },
+  custom_instructions: [
+    "Always use TypeScript strict mode",
+    "Prefer functional components with hooks",
+  ],
+  always_use_skills: ["lint", "test"],
+  prefer_skills: ["react-best-practices"],
+  avoid_skills: [],
+};
+
+const demoActivity: ActivityEntry[] = [
+  {
+    id: "act-001",
+    action: "execute-task",
+    milestoneId: "M003",
+    sliceId: "S02",
+    taskId: "T02",
+    timestamp: "2026-03-25T15:30:00Z",
+    messageCount: 42,
+  },
+  {
+    id: "act-002",
+    action: "plan-slice",
+    milestoneId: "M003",
+    sliceId: "S03",
+    taskId: null,
+    timestamp: "2026-03-25T14:00:00Z",
+    messageCount: 15,
+  },
+  {
+    id: "act-003",
+    action: "execute-task",
+    milestoneId: "M003",
+    sliceId: "S01",
+    taskId: "T03",
+    timestamp: "2026-03-24T11:15:00Z",
+    messageCount: 28,
+  },
+  {
+    id: "act-004",
+    action: "complete-slice",
+    milestoneId: "M003",
+    sliceId: "S01",
+    taskId: null,
+    timestamp: "2026-03-24T11:20:00Z",
+    messageCount: 5,
+  },
+  {
+    id: "act-005",
+    action: "execute-task",
+    milestoneId: "M002",
+    sliceId: "S03",
+    taskId: "T03",
+    timestamp: "2026-03-22T11:45:00Z",
+    messageCount: 55,
+  },
+  {
+    id: "act-006",
+    action: "plan-milestone",
+    milestoneId: "M003",
+    sliceId: null,
+    taskId: null,
+    timestamp: "2026-03-22T09:00:00Z",
+    messageCount: 20,
+  },
+  {
+    id: "act-007",
+    action: "complete-milestone",
+    milestoneId: "M002",
+    sliceId: null,
+    taskId: null,
+    timestamp: "2026-03-21T17:00:00Z",
+    messageCount: 8,
+  },
+];
+
 // ---------------------------------------------------------------------------
 // Simulated event system
 // ---------------------------------------------------------------------------
@@ -346,6 +480,36 @@ export function createDemoClient(): GsdClient {
     removeProject: async (projectId: string) => {
       const idx = demoProjects.findIndex((p) => p.id === projectId);
       if (idx >= 0) demoProjects.splice(idx, 1);
+    },
+
+    listSessions: async (_projectPath: string): Promise<SessionInfo[]> =>
+      demoSessions,
+
+    readPreferences: async (_projectPath: string): Promise<PreferencesData> =>
+      structuredClone(demoPreferences),
+
+    writePreferences: async (_projectPath: string, data: PreferencesData): Promise<void> => {
+      Object.assign(demoPreferences, data);
+    },
+
+    listActivity: async (_projectPath: string): Promise<ActivityEntry[]> =>
+      demoActivity,
+
+    initProject: async (_path: string): Promise<void> => {
+      // Simulate gsd init taking ~300ms
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    },
+
+    detectProjectMetadata: async (path: string): Promise<ProjectMetadata> => {
+      // Derive a plausible name from the last path segment
+      const basename = path.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? "project";
+      return {
+        detectedName: basename,
+        isGit: true,
+        language: "TypeScript",
+        hasGsd: false,
+        hasPlanning: false,
+      };
     },
 
     onGsdEvent: async (handler) => {

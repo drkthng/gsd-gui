@@ -28,24 +28,31 @@ describe("AutoModeControls", () => {
       sessionState: "connected",
       messages: [],
       isStreaming: false,
+      autoMode: false,
       pendingUIRequests: [],
       error: null,
       activeProjectPath: "/test",
     });
   });
 
-  it("shows Start Auto button when not streaming", () => {
+  it("shows Start Auto button when not streaming and not in auto mode", () => {
     renderWithProviders(<AutoModeControls />);
     expect(screen.getByRole("button", { name: /start auto/i })).toBeInTheDocument();
   });
 
-  it("shows Pause button when streaming", () => {
+  it("shows Stop button when streaming", () => {
     useGsdStore.setState({ isStreaming: true, sessionState: "streaming" });
     renderWithProviders(<AutoModeControls />);
-    expect(screen.getByRole("button", { name: /pause/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /stop auto/i })).toBeInTheDocument();
   });
 
-  it("sends auto command on Start Auto click", async () => {
+  it("shows Stop button when autoMode is true", () => {
+    useGsdStore.setState({ autoMode: true });
+    renderWithProviders(<AutoModeControls />);
+    expect(screen.getByRole("button", { name: /stop auto/i })).toBeInTheDocument();
+  });
+
+  it("sends /gsd auto prompt via startAuto on Start Auto click", async () => {
     renderWithProviders(<AutoModeControls />);
     await userEvent.click(screen.getByRole("button", { name: /start auto/i }));
     expect(mockClient.sendCommand).toHaveBeenCalledWith(
@@ -53,12 +60,20 @@ describe("AutoModeControls", () => {
     );
   });
 
-  it("sends stop command on Pause click", async () => {
+  it("sends abort RPC via stopAuto on Stop click", async () => {
     useGsdStore.setState({ isStreaming: true, sessionState: "streaming" });
     renderWithProviders(<AutoModeControls />);
-    await userEvent.click(screen.getByRole("button", { name: /pause/i }));
+    await userEvent.click(screen.getByRole("button", { name: /stop auto/i }));
     expect(mockClient.sendCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "prompt", text: "/gsd stop" })
+      expect.objectContaining({ type: "abort" })
+    );
+  });
+
+  it("sends /gsd next prompt via nextStep on Next Step click", async () => {
+    renderWithProviders(<AutoModeControls />);
+    await userEvent.click(screen.getByRole("button", { name: /next step/i }));
+    expect(mockClient.sendCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "prompt", text: "/gsd next" })
     );
   });
 
@@ -70,6 +85,50 @@ describe("AutoModeControls", () => {
   it("shows Steer button when streaming", () => {
     useGsdStore.setState({ isStreaming: true, sessionState: "streaming" });
     renderWithProviders(<AutoModeControls />);
-    expect(screen.getByRole("button", { name: /steer/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /steer execution/i })).toBeInTheDocument();
+  });
+
+  it("steer sends steer RPC with text from inline input", async () => {
+    useGsdStore.setState({ isStreaming: true, sessionState: "streaming" });
+    renderWithProviders(<AutoModeControls />);
+
+    // Click Steer to show input
+    await userEvent.click(screen.getByRole("button", { name: /steer execution/i }));
+
+    // Type steer instruction
+    const input = screen.getByLabelText(/steer input/i);
+    await userEvent.type(input, "focus on tests");
+
+    // Submit via Send button
+    await userEvent.click(screen.getByRole("button", { name: /send steer/i }));
+
+    expect(mockClient.sendCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "steer", text: "focus on tests" })
+    );
+  });
+
+  it("steer input submits on Enter key", async () => {
+    useGsdStore.setState({ isStreaming: true, sessionState: "streaming" });
+    renderWithProviders(<AutoModeControls />);
+
+    await userEvent.click(screen.getByRole("button", { name: /steer execution/i }));
+    const input = screen.getByLabelText(/steer input/i);
+    await userEvent.type(input, "adjust priority{Enter}");
+
+    expect(mockClient.sendCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "steer", text: "adjust priority" })
+    );
+  });
+
+  it("steer input closes on Escape without sending", async () => {
+    useGsdStore.setState({ isStreaming: true, sessionState: "streaming" });
+    renderWithProviders(<AutoModeControls />);
+
+    await userEvent.click(screen.getByRole("button", { name: /steer execution/i }));
+    const input = screen.getByLabelText(/steer input/i);
+    await userEvent.type(input, "something{Escape}");
+
+    expect(mockClient.sendCommand).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText(/steer input/i)).not.toBeInTheDocument();
   });
 });

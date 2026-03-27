@@ -1,10 +1,15 @@
+mod activity_parser;
+mod gsd_detect;
+mod gsd_init;
 mod gsd_parser;
 mod gsd_process;
 mod gsd_query;
-mod gsd_resolve;
-mod gsd_rpc;
+pub mod gsd_resolve;
+pub mod gsd_rpc;
 mod gsd_watcher;
+mod preferences_parser;
 mod project_registry;
+mod session_parser;
 
 use std::sync::Arc;
 use tauri::Emitter;
@@ -204,6 +209,57 @@ async fn parse_project_milestones_cmd(
     gsd_parser::parse_project_milestones(path)
 }
 
+/// List GSD sessions for a project by scanning session JSONL files.
+/// Returns a `Vec<SessionInfo>` matching the frontend `SessionInfo` interface.
+#[tauri::command]
+async fn list_project_sessions_cmd(
+    project_path: String,
+) -> Result<Vec<session_parser::SessionInfo>, String> {
+    session_parser::list_sessions(&project_path)
+}
+
+/// Read preferences from a project's `.gsd/preferences.md` YAML frontmatter.
+/// Returns a `serde_json::Value` containing the parsed YAML as JSON.
+#[tauri::command]
+async fn read_preferences_cmd(
+    project_path: String,
+) -> Result<serde_json::Value, String> {
+    preferences_parser::read_preferences(&project_path)
+}
+
+/// Write preferences to a project's `.gsd/preferences.md` YAML frontmatter.
+/// Accepts a `serde_json::Value`, converts to YAML, preserves the markdown body.
+#[tauri::command]
+async fn write_preferences_cmd(
+    project_path: String,
+    prefs: serde_json::Value,
+) -> Result<(), String> {
+    preferences_parser::write_preferences(&project_path, prefs)
+}
+
+/// List activity log entries from a project's `.gsd/activity/*.jsonl` files.
+/// Returns a `Vec<ActivityEntry>` sorted by sequence number.
+#[tauri::command]
+async fn list_activity_cmd(
+    project_path: String,
+) -> Result<Vec<activity_parser::ActivityEntry>, String> {
+    activity_parser::list_activity_entries(&project_path)
+}
+
+/// Initialize a new GSD project at the given path by running `gsd init <path>`.
+/// Creates the directory if it does not exist. Returns an error string on failure.
+#[tauri::command]
+fn init_project(path: String) -> Result<(), String> {
+    gsd_init::run_gsd_init(&path)
+}
+
+/// Detect project metadata from the filesystem at the given path.
+/// Checks for .git/, package.json (name + TypeScript detection), .gsd/, .planning/.
+#[tauri::command]
+fn detect_project_metadata(path: String) -> Result<gsd_detect::ProjectMetadata, String> {
+    Ok(gsd_detect::detect_project_metadata(&path))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -220,7 +276,13 @@ pub fn run() {
             get_saved_projects,
             add_project,
             remove_project,
-            parse_project_milestones_cmd
+            parse_project_milestones_cmd,
+            list_project_sessions_cmd,
+            read_preferences_cmd,
+            write_preferences_cmd,
+            list_activity_cmd,
+            init_project,
+            detect_project_metadata
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

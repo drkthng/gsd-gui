@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { MessageSquare } from "lucide-react";
-import { ChatView } from "@/components/chat";
+import { ChatView, ConnectionStatusBanner } from "@/components/chat";
 import { MessageInput } from "@/components/chat";
 import { AutoModeControls } from "@/components/controls";
 import { useGsdStore } from "@/stores/gsd-store";
@@ -34,6 +34,7 @@ export function ChatPage() {
         </div>
         <AutoModeControls />
       </div>
+      <ConnectionStatusBanner />
       <ChatView />
       <MessageInput />
     </div>

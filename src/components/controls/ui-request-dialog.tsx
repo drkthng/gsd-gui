@@ -25,25 +25,27 @@ export function UIRequestDialog() {
   if (!request) return null;
 
   return (
-    <Dialog open={true} onOpenChange={() => respondToUIRequest(request.request_id, null)}>
+    <Dialog open={true} onOpenChange={() => respondToUIRequest(request.id, null)}>
       <DialogContent>
-        <RequestBody request={request} onRespond={(response) => respondToUIRequest(request.request_id, response)} />
+        <RequestBody request={request} onRespond={(response) => respondToUIRequest(request.id, response)} />
       </DialogContent>
     </Dialog>
   );
 }
 
 function RequestBody({ request, onRespond }: { request: PendingUIRequest; onRespond: (response: unknown) => void }) {
-  const payload = request.payload as Record<string, unknown>;
-  const message = (payload?.message as string) ?? "Action required";
+  const payload = (request.payload ?? {}) as Record<string, unknown>;
+  const message = request.message ?? (payload?.message as string) ?? "Action required";
 
-  switch (request.kind) {
+  switch (request.method) {
     case "confirm":
       return <ConfirmBody message={message} onRespond={onRespond} />;
     case "select":
       return <SelectBody message={message} options={payload?.options as { label: string }[] ?? []} onRespond={onRespond} />;
     case "input":
       return <InputBody message={message} onRespond={onRespond} />;
+    case "notify":
+      return <ConfirmBody message={message} onRespond={onRespond} />;
     default:
       return <ConfirmBody message={message} onRespond={onRespond} />;
   }
