@@ -172,14 +172,18 @@ fn find_roadmap_file(milestone_dir: &Path, dir_name: &str) -> Option<PathBuf> {
     None
 }
 
-/// Check if a milestone has a SUMMARY.md with `status: complete` in frontmatter.
+/// Check if a milestone has a SUMMARY.md indicating completion.
+///
+/// Two formats are detected:
+/// 1. YAML frontmatter: `status: complete` between `---` fences (M012+ format)
+/// 2. Bold markdown: `**Status:** complete` anywhere in the first 30 lines (M011 and older format)
 fn has_complete_milestone_summary(milestone_dir: &Path, dir_name: &str) -> bool {
     let summary_path = milestone_dir.join(format!("{}-SUMMARY.md", dir_name));
     if !summary_path.exists() {
         return false;
     }
     match std::fs::read_to_string(&summary_path) {
-        Ok(content) => frontmatter_has_status_complete(&content),
+        Ok(content) => frontmatter_has_status_complete(&content) || markdown_has_status_complete(&content),
         Err(_) => false,
     }
 }
@@ -194,6 +198,16 @@ fn frontmatter_has_status_complete(content: &str) -> bool {
             let trimmed = line.trim();
             trimmed == "status: complete" || trimmed == "status: \"complete\""
         })
+}
+
+/// Detect bold-markdown status format used in older milestone summaries:
+/// `**Status:** complete` (case-insensitive, checked in first 30 lines).
+fn markdown_has_status_complete(content: &str) -> bool {
+    content.lines().take(30).any(|line| {
+        let lower = line.to_lowercase();
+        // Matches "**status:** complete" or "**status:** complete" with any spacing
+        lower.contains("**status:**") && lower.contains("complete")
+    })
 }
 
 /// Extract the frontmatter block between `---` fences.
@@ -643,6 +657,33 @@ mod tests {
     #[test]
     fn test_frontmatter_no_frontmatter() {
         assert!(!frontmatter_has_status_complete("# Just a heading"));
+    }
+
+    // -----------------------------------------------------------------------
+    // markdown_has_status_complete (M011-style bold markdown format)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_markdown_status_complete() {
+        let content = "# M011: Ship It — MILESTONE SUMMARY\n\n**Milestone:** M011\n**Status:** complete\n**Completed:** 2026-03-27\n";
+        assert!(markdown_has_status_complete(content));
+    }
+
+    #[test]
+    fn test_markdown_status_not_complete() {
+        let content = "# M011: Ship It — MILESTONE SUMMARY\n\n**Milestone:** M011\n**Status:** in-progress\n";
+        assert!(!markdown_has_status_complete(content));
+    }
+
+    #[test]
+    fn test_markdown_status_missing() {
+        assert!(!markdown_has_status_complete("# Just a heading\nNo status here"));
+    }
+
+    #[test]
+    fn test_markdown_status_case_insensitive() {
+        let content = "**STATUS:** Complete";
+        assert!(markdown_has_status_complete(content));
     }
 
     // -----------------------------------------------------------------------

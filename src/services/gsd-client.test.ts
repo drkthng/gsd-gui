@@ -114,7 +114,7 @@ describe("gsd-client", () => {
   it("parseProjectMilestones() calls invoke with correct command and project path", async () => {
     const client = createGsdClient();
     await client.parseProjectMilestones("/projects/my-app");
-    expect(mockInvoke).toHaveBeenCalledWith("parse_project_milestones", {
+    expect(mockInvoke).toHaveBeenCalledWith("parse_project_milestones_cmd", {
       projectPath: "/projects/my-app",
     });
   });
