@@ -1,16 +1,31 @@
 import { useState, useCallback } from "react";
-import { Search, MessageSquare, Clock, ChevronDown, ChevronRight, Loader2, ChevronsDown, Bot, User, Terminal } from "lucide-react";
+import {
+  Search, MessageSquare, Clock, ChevronDown, ChevronRight,
+  Loader2, ChevronsDown, Bot, User, Terminal, Brain,
+  Maximize2,
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { createGsdClient } from "@/services/gsd-client";
 import { useProjectStore } from "@/stores/project-store";
 import type { SessionInfo, SessionMessage } from "@/lib/types";
-import type { UseSessionsResult } from "@/hooks/use-sessions";
 
 const client = createGsdClient();
+
+// ---------------------------------------------------------------------------
+// Public component
+// ---------------------------------------------------------------------------
 
 interface SessionBrowserProps {
   sessions: SessionInfo[];
@@ -64,7 +79,7 @@ export function SessionBrowser({
         </span>
       </div>
 
-      {/* Session rows */}
+      {/* Rows */}
       <div className="space-y-1">
         {topLevel.map((session) => (
           <div key={session.id}>
@@ -87,7 +102,7 @@ export function SessionBrowser({
           ))}
       </div>
 
-      {/* Pagination controls */}
+      {/* Pagination */}
       {hasMore && (
         <div className="flex items-center gap-2 pt-1">
           <Button
@@ -97,11 +112,7 @@ export function SessionBrowser({
             onClick={onLoadMore}
             disabled={isLoadingMore}
           >
-            {isLoadingMore ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <ChevronDown className="h-3.5 w-3.5" />
-            )}
+            {isLoadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ChevronDown className="h-3.5 w-3.5" />}
             Load next 10
           </Button>
           <Button
@@ -121,12 +132,13 @@ export function SessionBrowser({
 }
 
 // ---------------------------------------------------------------------------
-// Individual session row with expandable message thread
+// Session row — inline expand + "open" button to full dialog
 // ---------------------------------------------------------------------------
 
 function SessionRow({ session }: { session: SessionInfo }) {
   const activeProject = useProjectStore((s) => s.activeProject);
   const [expanded, setExpanded] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [messages, setMessages] = useState<SessionMessage[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,81 +163,162 @@ function SessionRow({ session }: { session: SessionInfo }) {
     if (next) void loadMessages();
   };
 
-  return (
-    <div
-      className={`rounded-md border transition-colors ${
-        session.isActive ? "border-primary/40 bg-primary/5" : "border-border"
-      }`}
-    >
-      {/* Row header — click to expand */}
-      <button
-        className="flex w-full items-start gap-3 p-3 text-left hover:bg-muted/40 rounded-md transition-colors"
-        onClick={handleToggle}
-      >
-        <span className="mt-0.5 text-muted-foreground">
-          {expanded ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          )}
-        </span>
-        <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium truncate">{session.name}</span>
-            {session.isActive && (
-              <Badge className="text-[10px] bg-green-600 text-white">Active</Badge>
-            )}
-          </div>
-          <p className="truncate text-xs text-muted-foreground mt-0.5">{session.preview}</p>
-          <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
-            <span>{session.messageCount} msgs</span>
-            <span className="font-mono">${session.cost.toFixed(4)}</span>
-            <span>
-              {new Date(isNaN(Number(session.lastActiveAt))
-                ? session.lastActiveAt
-                : Number(session.lastActiveAt) * 1000
-              ).toLocaleString()}
-            </span>
-          </div>
-        </div>
-      </button>
+  const handleOpenDialog = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    void loadMessages();
+    setDialogOpen(true);
+  };
 
-      {/* Expanded message thread */}
-      {expanded && (
-        <div className="border-t px-3 pb-3">
-          {loading && (
-            <div className="flex items-center gap-2 pt-3 text-sm text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Loading messages…
+  const formattedTime = (() => {
+    const ts = session.lastActiveAt;
+    const ms = isNaN(Number(ts)) ? new Date(ts).getTime() : Number(ts) * 1000;
+    return isNaN(ms) ? ts : new Date(ms).toLocaleString();
+  })();
+
+  return (
+    <>
+      <div className={`rounded-md border transition-colors ${session.isActive ? "border-primary/40 bg-primary/5" : "border-border"}`}>
+        {/* Row header */}
+        <div
+          className="flex w-full items-start gap-3 p-3 cursor-pointer hover:bg-muted/40 rounded-md transition-colors"
+          onClick={handleToggle}
+        >
+          <span className="mt-0.5 text-muted-foreground shrink-0">
+            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </span>
+          <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium truncate">{session.name}</span>
+              {session.isActive && <Badge className="text-[10px] bg-green-600 text-white">Active</Badge>}
             </div>
-          )}
-          {error && (
-            <p className="pt-3 text-xs text-destructive">{error}</p>
-          )}
-          {messages && messages.length === 0 && (
-            <p className="pt-3 text-xs text-muted-foreground">No readable messages in this session.</p>
-          )}
-          {messages && messages.length > 0 && (
-            <ScrollArea className="max-h-[480px] pt-3">
-              <div className="space-y-3 pr-2">
-                {messages.map((msg) => (
-                  <MessageBubble key={msg.id} message={msg} />
-                ))}
-              </div>
-            </ScrollArea>
-          )}
+            <p className="truncate text-xs text-muted-foreground mt-0.5">{session.preview}</p>
+            <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+              <span>{session.messageCount} msgs</span>
+              <span className="font-mono">${session.cost.toFixed(4)}</span>
+              <span>{formattedTime}</span>
+            </div>
+          </div>
+          {/* Open in dialog button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity mt-0.5"
+            title="Open in full view"
+            onClick={handleOpenDialog}
+          >
+            <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+          </Button>
         </div>
-      )}
+
+        {/* Inline expanded thread */}
+        {expanded && (
+          <div className="border-t px-3 pb-3">
+            <MessageThread messages={messages} loading={loading} error={error} />
+          </div>
+        )}
+      </div>
+
+      {/* Full-screen dialog */}
+      <SessionDialog
+        session={session}
+        messages={messages}
+        loading={loading}
+        error={error}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        formattedTime={formattedTime}
+      />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Session viewer dialog
+// ---------------------------------------------------------------------------
+
+interface SessionDialogProps {
+  session: SessionInfo;
+  messages: SessionMessage[] | null;
+  loading: boolean;
+  error: string | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  formattedTime: string;
+}
+
+function SessionDialog({ session, messages, loading, error, open, onOpenChange, formattedTime }: SessionDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl h-[80vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-6 pt-5 pb-3 border-b shrink-0">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <DialogTitle className="truncate">{session.name}</DialogTitle>
+              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                <span>{session.messageCount} messages</span>
+                <span className="font-mono">${session.cost.toFixed(4)}</span>
+                <span>{formattedTime}</span>
+                {session.isActive && <Badge className="text-[10px] bg-green-600 text-white">Active</Badge>}
+              </div>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="px-6 py-4">
+            <MessageThread messages={messages} loading={loading} error={error} />
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shared message thread renderer
+// ---------------------------------------------------------------------------
+
+function MessageThread({
+  messages,
+  loading,
+  error,
+}: {
+  messages: SessionMessage[] | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 pt-3 text-sm text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Loading messages…
+      </div>
+    );
+  }
+  if (error) {
+    return <p className="pt-3 text-xs text-destructive">{error}</p>;
+  }
+  if (messages && messages.length === 0) {
+    return <p className="pt-3 text-xs text-muted-foreground">No readable messages in this session.</p>;
+  }
+  if (!messages) return null;
+
+  return (
+    <div className="space-y-3 pt-3">
+      {messages.map((msg) => (
+        <MessageBubble key={msg.id} message={msg} />
+      ))}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Message bubble
+// Message bubble with optional thinking collapsible
 // ---------------------------------------------------------------------------
 
 function MessageBubble({ message }: { message: SessionMessage }) {
+  const [thinkingOpen, setThinkingOpen] = useState(false);
   const isUser = message.role === "user";
   const isTool = message.role === "toolResult" || message.role === "tool_result";
 
@@ -234,22 +327,51 @@ function MessageBubble({ message }: { message: SessionMessage }) {
   const bubbleClass = isUser
     ? "bg-primary/10 border-primary/20"
     : isTool
-      ? "bg-muted/60 border-border font-mono"
+      ? "bg-muted/60 border-border"
       : "bg-background border-border";
 
   return (
-    <div className={`rounded-md border p-3 text-sm ${bubbleClass} ${message.isError ? "border-destructive/50 bg-destructive/5" : ""}`}>
-      <div className="flex items-center gap-1.5 mb-1.5 text-xs text-muted-foreground">
+    <div className={`rounded-md border text-sm ${bubbleClass} ${message.isError ? "border-destructive/50 bg-destructive/5" : ""}`}>
+      {/* Role header */}
+      <div className="flex items-center gap-1.5 px-3 pt-2.5 pb-1 text-xs text-muted-foreground">
         <Icon className="h-3 w-3" />
         <span className="font-medium">{label}</span>
-        {message.isError && <Badge variant="destructive" className="text-[10px] h-4">error</Badge>}
+        {message.isError && <Badge variant="destructive" className="text-[10px] h-4 ml-1">error</Badge>}
       </div>
-      <pre className={`whitespace-pre-wrap break-words leading-relaxed ${isTool ? "text-xs" : ""}`}>
-        {message.content}
-      </pre>
+
+      {/* Thinking collapsible (only on assistant messages) */}
+      {message.thinking && (
+        <div className="mx-3 mb-2 rounded border border-dashed border-muted-foreground/30 overflow-hidden">
+          <button
+            className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/50 transition-colors"
+            onClick={() => setThinkingOpen((v) => !v)}
+          >
+            <Brain className="h-3 w-3 shrink-0 text-purple-500" />
+            <span className="font-medium text-purple-600 dark:text-purple-400">Thinking</span>
+            {thinkingOpen
+              ? <ChevronDown className="h-3 w-3 ml-auto" />
+              : <ChevronRight className="h-3 w-3 ml-auto" />}
+          </button>
+          {thinkingOpen && (
+            <div className="px-3 pb-2.5 pt-1 text-xs text-muted-foreground font-mono whitespace-pre-wrap break-words border-t border-dashed border-muted-foreground/20 bg-muted/30">
+              {message.thinking}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Message body */}
+      <div className={`px-3 pb-3 ${isTool ? "font-mono text-xs" : ""}`}>
+        {isUser || isTool ? (
+          <pre className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</pre>
+        ) : (
+          <div className="prose prose-sm dark:prose-invert max-w-none [&_pre]:bg-muted [&_pre]:rounded [&_pre]:p-2 [&_pre]:text-xs [&_code]:text-xs">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
-// Re-export the hook type for the sessions page
-export type { UseSessionsResult };
