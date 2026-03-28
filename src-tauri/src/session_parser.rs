@@ -239,8 +239,9 @@ fn parse_session_file(path: &Path) -> Result<SessionInfo, String> {
 #[serde(rename_all = "camelCase")]
 pub struct SessionMessage {
     pub id: String,
-    pub role: String,       // "user" | "assistant" | "tool_result"
-    pub content: String,    // rendered text (thinking blocks stripped)
+    pub role: String,           // "user" | "assistant" | "tool_result"
+    pub content: String,        // rendered text
+    pub thinking: Option<String>, // thinking block content, if present
     pub timestamp: String,
     pub is_error: bool,
 }
@@ -330,15 +331,16 @@ fn parse_session_messages(path: &Path) -> Result<Vec<SessionMessage>, String> {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        let text = extract_message_text(msg);
-        if text.is_empty() {
-            continue; // skip tool calls with no text
+        let (text, thinking) = extract_message_parts(msg);
+        if text.is_empty() && thinking.is_none() {
+            continue; // skip pure tool-call messages with nothing visible
         }
 
         messages.push(SessionMessage {
             id,
             role: role.to_string(),
             content: text,
+            thinking,
             timestamp,
             is_error,
         });
@@ -347,21 +349,28 @@ fn parse_session_messages(path: &Path) -> Result<Vec<SessionMessage>, String> {
     Ok(messages)
 }
 
-/// Extract readable text from a message, handling all content formats.
-/// Strips thinking blocks and tool calls — returns only text visible to users.
-fn extract_message_text(message: &serde_json::Value) -> String {
+/// Extract (visible_text, thinking_text) from a message.
+fn extract_message_parts(message: &serde_json::Value) -> (String, Option<String>) {
     let content = message.get("content");
     match content {
-        Some(serde_json::Value::String(s)) => s.clone(),
+        Some(serde_json::Value::String(s)) => (s.clone(), None),
         Some(serde_json::Value::Array(arr)) => {
-            let mut parts: Vec<String> = Vec::new();
+            let mut text_parts: Vec<String> = Vec::new();
+            let mut thinking_parts: Vec<String> = Vec::new();
             for block in arr {
                 let block_type = block.get("type").and_then(|v| v.as_str()).unwrap_or("");
                 match block_type {
                     "text" => {
                         if let Some(t) = block.get("text").and_then(|v| v.as_str()) {
                             if !t.is_empty() {
-                                parts.push(t.to_string());
+                                text_parts.push(t.to_string());
+                            }
+                        }
+                    }
+                    "thinking" => {
+                        if let Some(t) = block.get("thinking").and_then(|v| v.as_str()) {
+                            if !t.is_empty() {
+                                thinking_parts.push(t.to_string());
                             }
                         }
                     }
@@ -370,25 +379,21 @@ fn extract_message_text(message: &serde_json::Value) -> String {
                         if let Some(t) = block
                             .get("content")
                             .and_then(|v| v.as_array())
-                            .and_then(|a| {
-                                a.iter().find_map(|b| b.get("text").and_then(|t| t.as_str()))
-                            })
+                            .and_then(|a| a.iter().find_map(|b| b.get("text").and_then(|t| t.as_str())))
                             .or_else(|| block.get("content").and_then(|v| v.as_str()))
                         {
-                            let tool_name = block
-                                .get("toolName")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("tool");
-                            parts.push(format!("[{tool_name}]\n{t}"));
+                            let tool_name = block.get("toolName").and_then(|v| v.as_str()).unwrap_or("tool");
+                            text_parts.push(format!("[{tool_name}]\n{t}"));
                         }
                     }
-                    // toolCall, thinking — skip
+                    // toolCall — skip
                     _ => {}
                 }
             }
-            parts.join("\n\n")
+            let thinking = if thinking_parts.is_empty() { None } else { Some(thinking_parts.join("\n\n")) };
+            (text_parts.join("\n\n"), thinking)
         }
-        _ => String::new(),
+        _ => (String::new(), None),
     }
 }
 

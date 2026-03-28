@@ -72,6 +72,7 @@ export interface GsdClient {
   // Session / preferences / activity parsers
   listSessions: (projectPath: string, offset: number, limit: number) => Promise<SessionPage>;
   readSessionMessages: (projectPath: string, sessionId: string) => Promise<SessionMessage[]>;
+  getGitBranch: (projectPath: string) => Promise<string | null>;
   readPreferences: (projectPath: string) => Promise<PreferencesData>;
   writePreferences: (projectPath: string, data: PreferencesData) => Promise<void>;
   listActivity: (projectPath: string) => Promise<ActivityEntry[]>;
@@ -190,6 +191,11 @@ function createTauriClient(): GsdClient {
     readSessionMessages: async (projectPath: string, sessionId: string) => {
       const invoke = await getInvoke();
       return invoke<SessionMessage[]>("read_session_messages_cmd", { projectPath, sessionId });
+    },
+
+    getGitBranch: async (projectPath: string) => {
+      const invoke = await getInvoke();
+      return invoke<string | null>("get_git_branch", { projectPath });
     },
 
     readPreferences: async (projectPath: string) => {

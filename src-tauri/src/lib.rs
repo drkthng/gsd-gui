@@ -324,6 +324,7 @@ pub fn run() {
             parse_project_milestones_cmd,
             list_project_sessions_cmd,
             read_session_messages_cmd,
+            get_git_branch,
             read_preferences_cmd,
             write_preferences_cmd,
             list_activity_cmd,
@@ -335,4 +336,22 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+async fn get_git_branch(project_path: String) -> Result<Option<String>, String> {
+    let head = std::path::Path::new(&project_path).join(".git").join("HEAD");
+    if !head.exists() {
+        return Ok(None);
+    }
+    let content = std::fs::read_to_string(&head)
+        .map_err(|e| format!("Failed to read .git/HEAD: {e}"))?;
+    let branch = content.trim();
+    // ref: refs/heads/my-branch  →  my-branch
+    if let Some(b) = branch.strip_prefix("ref: refs/heads/") {
+        Ok(Some(b.to_string()))
+    } else {
+        // detached HEAD — return short SHA
+        Ok(Some(branch.chars().take(8).collect()))
+    }
 }
