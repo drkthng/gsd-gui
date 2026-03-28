@@ -54,7 +54,7 @@ The ThemeProvider follows the shadcn/ui Vite dark mode pattern: it reads the the
    export function ThemeProvider({
      children,
      defaultTheme = "system",
-     storageKey = "gsd-ui-theme",
+     storageKey = "gsd-gui-theme",
      ...props
    }: ThemeProviderProps) {
      const [theme, setTheme] = useState<Theme>(
@@ -97,7 +97,7 @@ The ThemeProvider follows the shadcn/ui Vite dark mode pattern: it reads the the
      return context;
    };
    ```
-   Note the `storageKey` default is `"gsd-ui-theme"` (not `"vite-ui-theme"` from the shadcn docs example — we use our app name).
+   Note the `storageKey` default is `"gsd-gui-theme"` (not `"vite-ui-theme"` from the shadcn docs example — we use our app name).
 
 3. **Update `src/App.tsx`:** Wrap the app content with ThemeProvider. Remove the static `<h1>GSD</h1>` and replace with a simple layout that includes a shadcn/ui Button to prove integration:
    ```tsx
@@ -106,7 +106,7 @@ The ThemeProvider follows the shadcn/ui Vite dark mode pattern: it reads the the
 
    function App() {
      return (
-       <ThemeProvider defaultTheme="system" storageKey="gsd-ui-theme">
+       <ThemeProvider defaultTheme="system" storageKey="gsd-gui-theme">
          <div className="flex min-h-screen items-center justify-center">
            <div className="text-center space-y-4">
              <h1 className="text-4xl font-bold">GSD</h1>

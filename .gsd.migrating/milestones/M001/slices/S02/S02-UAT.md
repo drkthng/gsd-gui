@@ -181,7 +181,7 @@
    - `useTheme()` returns `theme` and `setTheme`
    - Default theme is "system"
    - `setTheme("dark")` adds "dark" class to `document.documentElement`
-   - Theme persists to `localStorage("gsd-ui-theme")`
+   - Theme persists to `localStorage("gsd-gui-theme")`
    - Reads persisted theme on mount
    - System theme detected via `matchMedia`
    - `useTheme()` throws when used outside ThemeProvider
