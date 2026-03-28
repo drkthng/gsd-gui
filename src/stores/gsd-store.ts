@@ -17,6 +17,7 @@ import type {
 export interface GsdMessage {
   role: "user" | "assistant" | "system";
   content: string;
+  thinking?: string;
   timestamp: number;
 }
 
@@ -189,25 +190,28 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
         break;
 
       case "turn_end": {
-        // turn_end carries the canonical final text for this turn.
-        // Replace the streaming placeholder (built from text_deltas) with it.
+        // turn_end carries the canonical final message for this turn.
+        // Extract text and thinking from content blocks.
         const msg = event.message;
         if (msg.role === "assistant") {
-          const text =
-            typeof msg.content === "string"
-              ? msg.content
-              : msg.content
-                  .filter((b) => b.type === "text")
-                  .map((b) => b.text ?? "")
-                  .join("");
+          const blocks = typeof msg.content === "string" ? [] : msg.content;
+          const text = typeof msg.content === "string"
+            ? msg.content
+            : blocks.filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
+          const thinking = blocks
+            .filter((b) => b.type === "thinking")
+            .map((b) => b.thinking ?? "")
+            .filter(Boolean)
+            .join("\n\n") || undefined;
+
           if (text) {
             set((s) => {
               const msgs = [...s.messages];
               const last = msgs[msgs.length - 1];
               if (last && last.role === "assistant") {
-                msgs[msgs.length - 1] = { ...last, content: text };
+                msgs[msgs.length - 1] = { ...last, content: text, thinking };
               } else {
-                msgs.push({ role: "assistant", content: text, timestamp: Date.now() });
+                msgs.push({ role: "assistant", content: text, thinking, timestamp: Date.now() });
               }
               return { messages: msgs };
             });
@@ -217,10 +221,10 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
       }
 
       case "message_update": {
-        // Stream text deltas to give live feedback during generation
+        // Stream text and thinking deltas for live feedback
         const ev = event.assistantMessageEvent;
-        if (ev.type === "text_delta" && ev.delta) {
-          const delta = ev.delta;
+        if (ev.type === "text_delta" && "delta" in ev) {
+          const delta = ev.delta as string;
           set((s) => {
             const msgs = [...s.messages];
             const last = msgs[msgs.length - 1];
@@ -228,6 +232,18 @@ export const useGsdStore = create<GsdState>()((set, get) => ({
               msgs[msgs.length - 1] = { ...last, content: last.content + delta };
             } else {
               msgs.push({ role: "assistant", content: delta, timestamp: Date.now() });
+            }
+            return { messages: msgs };
+          });
+        } else if (ev.type === "thinking_delta" && "delta" in ev) {
+          const delta = ev.delta as string;
+          set((s) => {
+            const msgs = [...s.messages];
+            const last = msgs[msgs.length - 1];
+            if (last && last.role === "assistant") {
+              msgs[msgs.length - 1] = { ...last, thinking: (last.thinking ?? "") + delta };
+            } else {
+              msgs.push({ role: "assistant", content: "", thinking: delta, timestamp: Date.now() });
             }
             return { messages: msgs };
           });

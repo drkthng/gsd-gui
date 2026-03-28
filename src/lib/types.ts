@@ -47,8 +47,9 @@ export interface GetCommandsResponse {
 
 /** A GSD message content block (text or tool use) */
 export interface GsdContentBlock {
-  type: "text" | "tool_use" | "tool_result";
+  type: "text" | "tool_use" | "tool_result" | "thinking";
   text?: string;
+  thinking?: string;
   index?: number;
 }
 
@@ -63,7 +64,11 @@ export interface GsdMessage {
 export type AssistantMessageEvent =
   | { type: "text_start"; contentIndex: number }
   | { type: "text_delta"; contentIndex: number; delta: string }
-  | { type: "text_end"; contentIndex: number; content: string };
+  | { type: "text_end"; contentIndex: number; content: string }
+  | { type: "thinking_start"; contentIndex: number }
+  | { type: "thinking_delta"; contentIndex: number; delta: string }
+  | { type: "thinking_end"; contentIndex: number; thinking: string }
+  | { type: string; [key: string]: unknown };
 
 export type RpcEvent =
   | { type: "agent_start" }
