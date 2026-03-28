@@ -11,6 +11,8 @@ import type {
   QuerySnapshot,
   ProjectInfo,
   SessionInfo,
+  SessionPage,
+  SessionMessage,
   PreferencesData,
   ActivityEntry,
   GsdEventPayload,
@@ -19,6 +21,8 @@ import type {
   GsdFileChangedPayload,
   ProjectMetadata,
   GsdVersionInfo,
+  GsdCommand,
+  GetCommandsResponse,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -445,6 +449,24 @@ export function createDemoClient(): GsdClient {
       if (command.type === "prompt" && sessionConnected) {
         // Simulate async response
         setTimeout(() => simulateStreamingResponse(command.message), 200);
+      } else if (command.type === "get_commands") {
+        // Return demo slash commands so the palette populates
+        const demoCommands: GsdCommand[] = [
+          { name: "auto", description: "Start auto-mode execution", source: "extension" },
+          { name: "stop", description: "Stop auto-mode", source: "extension" },
+          { name: "status", description: "Show project status", source: "extension" },
+          { name: "quick <task>", description: "Run a quick task | without milestone ceremony", source: "extension" },
+          { name: "steer <direction>", description: "Steer the current execution | with new context", source: "extension" },
+        ];
+        const response: GetCommandsResponse = { commands: demoCommands };
+        setTimeout(() => {
+          eventHandlers.gsdEvent.forEach((h) =>
+            h({
+              raw: JSON.stringify({ type: "response", command: "get_commands", success: true, data: response }),
+              timestamp: Date.now(),
+            })
+          );
+        }, 50);
       }
     },
 
@@ -483,8 +505,30 @@ export function createDemoClient(): GsdClient {
       if (idx >= 0) demoProjects.splice(idx, 1);
     },
 
-    listSessions: async (_projectPath: string): Promise<SessionInfo[]> =>
-      demoSessions,
+    updateProject: async (projectId: string, name?: string, description?: string): Promise<SavedProject> => {
+      const project = demoProjects.find((p) => p.id === projectId);
+      if (!project) throw new Error(`Project not found: ${projectId}`);
+      if (name !== undefined) project.name = name.trim();
+      if (description !== undefined) project.description = description.trim() || null;
+      return structuredClone(project);
+    },
+
+    listSessions: async (_projectPath: string, offset: number, limit: number): Promise<SessionPage> => {
+      const total = demoSessions.length;
+      const page = limit === 0
+        ? demoSessions.slice(offset)
+        : demoSessions.slice(offset, offset + limit);
+      return { sessions: page, total };
+    },
+
+    readSessionMessages: async (_projectPath: string, sessionId: string): Promise<SessionMessage[]> => {
+      const session = demoSessions.find((s) => s.id === sessionId);
+      if (!session) return [];
+      return [
+        { id: "m1", role: "user", content: session.preview || "Hello, GSD!", timestamp: session.createdAt, isError: false },
+        { id: "m2", role: "assistant", content: "I'm ready to help. This is a demo session — real content loads from your project's session files.", timestamp: session.lastActiveAt, isError: false },
+      ];
+    },
 
     readPreferences: async (_projectPath: string): Promise<PreferencesData> =>
       structuredClone(demoPreferences),

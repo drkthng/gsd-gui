@@ -8,6 +8,7 @@ import { LoadingState } from "@/components/shared/loading-state";
 import { ProjectCard } from "./project-card";
 import { NewProjectWizard } from "./new-project-wizard";
 import { useProjectStore } from "@/stores/project-store";
+import { useGsdStore } from "@/stores/gsd-store";
 import { useImportDetection } from "@/hooks/use-import-detection";
 import { createGsdClient } from "@/services/gsd-client";
 import type { WizardFormData } from "./new-project-wizard";
@@ -42,7 +43,11 @@ export function ProjectGallery() {
   const loadProjects = useProjectStore((s) => s.loadProjects);
   const addProject = useProjectStore((s) => s.addProject);
   const removeProject = useProjectStore((s) => s.removeProject);
+  const updateProject = useProjectStore((s) => s.updateProject);
   const selectProject = useProjectStore((s) => s.selectProject);
+  const activeProjectPath = useGsdStore((s) => s.activeProjectPath);
+  const sessionState = useGsdStore((s) => s.sessionState);
+  const gsdConnect = useGsdStore((s) => s.connect);
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
@@ -195,17 +200,46 @@ export function ProjectGallery() {
         <p className="text-sm text-destructive">{importError}</p>
       )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map((project) => (
-          <ProjectCard
-            key={project.id}
-            project={project}
-            onClick={() => {
-              selectProject(project);
-              navigate("/milestones");
-            }}
-            onRemove={() => removeProject(project.id)}
-          />
-        ))}
+        {filtered.map((project) => {
+          const isActiveSession =
+            activeProjectPath === project.path &&
+            (sessionState === "connected" ||
+              sessionState === "streaming" ||
+              sessionState === "connecting");
+          const isConnecting =
+            activeProjectPath === project.path && sessionState === "connecting";
+
+          return (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              isActiveSession={isActiveSession && sessionState !== "connecting"}
+              isConnecting={isConnecting}
+              onClick={() => {
+                selectProject(project);
+                navigate("/milestones");
+              }}
+              onRemove={() => removeProject(project.id)}
+              onEdit={(name, description) => updateProject(project.id, name, description)}
+              onOpenChat={() => {
+                selectProject(project);
+                // If no session or session is for a different project, start one
+                if (
+                  sessionState === "idle" ||
+                  sessionState === "disconnected" ||
+                  activeProjectPath !== project.path
+                ) {
+                  void gsdConnect(project.path);
+                }
+                navigate("/chat");
+              }}
+              onViewSessions={() => {
+                selectProject(project);
+                navigate("/sessions");
+              }}
+            />
+          );
+        })}
       </div>
       <NewProjectWizard
         open={wizardOpen}

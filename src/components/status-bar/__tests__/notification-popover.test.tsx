@@ -226,7 +226,6 @@ describe("NotificationPopover — update notifications", () => {
     render(<NotificationPopover />);
     await openPopover(user);
 
-    const items = screen.getAllByRole("listitem", { hidden: true });
     // Update notification should appear in the DOM before the regular one
     const allText = document.body.textContent ?? "";
     const updateIdx = allText.indexOf("GSD update available");

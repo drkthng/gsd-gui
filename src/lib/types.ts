@@ -204,6 +204,19 @@ export interface SessionInfo {
   isActive: boolean;
 }
 
+export interface SessionPage {
+  sessions: SessionInfo[];
+  total: number;
+}
+
+export interface SessionMessage {
+  id: string;
+  role: "user" | "assistant" | "toolResult" | string;
+  content: string;
+  timestamp: string;
+  isError: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Preferences data (from preferences.md YAML frontmatter)
 // Keys are camelCase matching Rust serde(rename_all = "camelCase") output.

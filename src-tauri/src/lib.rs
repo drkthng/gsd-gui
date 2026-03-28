@@ -200,6 +200,16 @@ async fn remove_project(
     project_registry::remove_project(&app, &project_id)
 }
 
+#[tauri::command]
+async fn update_project(
+    project_id: String,
+    name: Option<String>,
+    description: Option<String>,
+    app: tauri::AppHandle,
+) -> Result<project_registry::SavedProject, String> {
+    project_registry::update_project(&app, &project_id, name, description)
+}
+
 /// Parse all milestones/slices/tasks from a project's `.gsd/` directory.
 /// Returns a structured tree matching the frontend `MilestoneInfo[]` type.
 #[tauri::command]
@@ -211,12 +221,30 @@ async fn parse_project_milestones_cmd(
 }
 
 /// List GSD sessions for a project by scanning session JSONL files.
-/// Returns a `Vec<SessionInfo>` matching the frontend `SessionInfo` interface.
+/// Returns a paginated `SessionPage` with sessions and total count.
 #[tauri::command]
 async fn list_project_sessions_cmd(
     project_path: String,
-) -> Result<Vec<session_parser::SessionInfo>, String> {
-    session_parser::list_sessions(&project_path)
+    offset: usize,
+    limit: usize,
+) -> Result<SessionPage, String> {
+    let (sessions, total) = session_parser::list_sessions(&project_path, offset, limit)?;
+    Ok(SessionPage { sessions, total })
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionPage {
+    sessions: Vec<session_parser::SessionInfo>,
+    total: usize,
+}
+
+#[tauri::command]
+async fn read_session_messages_cmd(
+    project_path: String,
+    session_id: String,
+) -> Result<Vec<session_parser::SessionMessage>, String> {
+    session_parser::read_session_messages(&project_path, &session_id)
 }
 
 /// Read preferences from a project's `.gsd/preferences.md` YAML frontmatter.
@@ -292,8 +320,10 @@ pub fn run() {
             get_saved_projects,
             add_project,
             remove_project,
+            update_project,
             parse_project_milestones_cmd,
             list_project_sessions_cmd,
+            read_session_messages_cmd,
             read_preferences_cmd,
             write_preferences_cmd,
             list_activity_cmd,

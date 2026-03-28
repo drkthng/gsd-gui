@@ -48,6 +48,8 @@ fn registry_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 // ---------------------------------------------------------------------------
 
 /// Load the registry from disk. Returns empty registry if file doesn't exist.
+/// Also self-heals any stored projects whose name is a generic GSD placeholder
+/// ("Project", "GSD Project", etc.) by re-deriving from PROJECT.md or directory name.
 pub fn load(app: &tauri::AppHandle) -> Result<Registry, String> {
     let path = registry_path(app)?;
     if !path.exists() {
@@ -55,8 +57,44 @@ pub fn load(app: &tauri::AppHandle) -> Result<Registry, String> {
     }
     let data = fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read registry at {}: {e}", path.display()))?;
-    serde_json::from_str(&data)
-        .map_err(|e| format!("Failed to parse registry JSON: {e}"))
+    let mut registry: Registry = serde_json::from_str(&data)
+        .map_err(|e| format!("Failed to parse registry JSON: {e}"))?;
+
+    // Heal generic placeholder names stored by earlier versions
+    let mut changed = false;
+    for project in &mut registry.projects {
+        // Strip \\?\ UNC prefix that canonicalize used to add
+        if project.path.starts_with(r"\\?\") {
+            project.path = project.path[4..].to_string();
+            changed = true;
+        }
+        if is_generic_name(&project.name) {
+            let project_dir = std::path::Path::new(&project.path);
+            let better_name = read_project_name(project_dir).or_else(|| {
+                project_dir
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+            });
+            if let Some(name) = better_name {
+                project.name = name;
+                changed = true;
+            }
+        }
+    }
+    if changed {
+        // Best-effort write — don't fail the load if the save fails
+        let _ = save(app, &registry);
+    }
+
+    Ok(registry)
+}
+
+/// Returns true if the name is a known GSD-generated generic placeholder.
+fn is_generic_name(name: &str) -> bool {
+    matches!(
+        name.trim().to_lowercase().as_str(),
+        "project" | "gsd project" | "untitled" | ""
+    )
 }
 
 /// Save the registry to disk. Creates parent directories if needed.
@@ -82,7 +120,11 @@ pub fn add_project(
     let abs_path = fs::canonicalize(project_path)
         .map_err(|e| format!("Path does not exist: {project_path} ({e})"))?;
 
-    let abs_str = abs_path.to_string_lossy().to_string();
+    // Strip the \\?\ UNC prefix Windows canonicalize adds — store clean paths
+    let abs_str = {
+        let s = abs_path.to_string_lossy().to_string();
+        if s.starts_with(r"\\?\") { s[4..].to_string() } else { s }
+    };
 
     // Validate it's a directory with .gsd/
     if !abs_path.is_dir() {
@@ -123,6 +165,37 @@ pub fn add_project(
     save(app, &registry)?;
 
     Ok(project)
+}
+
+/// Update a project's name and/or description in the registry.
+pub fn update_project(
+    app: &tauri::AppHandle,
+    project_id: &str,
+    name: Option<String>,
+    description: Option<String>,
+) -> Result<SavedProject, String> {
+    let mut registry = load(app)?;
+    let project = registry
+        .projects
+        .iter_mut()
+        .find(|p| p.id == project_id)
+        .ok_or_else(|| format!("Project not found: {project_id}"))?;
+
+    if let Some(n) = name {
+        let trimmed = n.trim().to_string();
+        if trimmed.is_empty() {
+            return Err("Project name cannot be empty".to_string());
+        }
+        project.name = trimmed;
+    }
+    if let Some(d) = description {
+        let trimmed = d.trim().to_string();
+        project.description = if trimmed.is_empty() { None } else { Some(trimmed) };
+    }
+
+    let updated = project.clone();
+    save(app, &registry)?;
+    Ok(updated)
 }
 
 /// Remove a project from the registry by id.
@@ -169,9 +242,15 @@ fn read_project_name(project_dir: &Path) -> Option<String> {
         let trimmed = line.trim();
         if let Some(title) = trimmed.strip_prefix("# ") {
             let title = title.trim();
-            if !title.is_empty() {
-                return Some(title.to_string());
+            // Reject GSD's generic default placeholder headings
+            if title.is_empty()
+                || title.eq_ignore_ascii_case("project")
+                || title.eq_ignore_ascii_case("gsd project")
+                || title.eq_ignore_ascii_case("untitled")
+            {
+                return None;
             }
+            return Some(title.to_string());
         }
     }
     None

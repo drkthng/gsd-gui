@@ -15,7 +15,8 @@ import type {
   ProjectInfo,
   SavedProject,
   MilestoneInfo,
-  SessionInfo,
+  SessionPage,
+  SessionMessage,
   PreferencesData,
   ActivityEntry,
   GsdEventPayload,
@@ -35,6 +36,8 @@ export type {
   SavedProject,
   MilestoneInfo,
   SessionInfo,
+  SessionPage,
+  SessionMessage,
   PreferencesData,
   ActivityEntry,
   GsdEventPayload,
@@ -65,8 +68,10 @@ export interface GsdClient {
   getSavedProjects: () => Promise<SavedProject[]>;
   addProject: (projectPath: string, description?: string) => Promise<SavedProject>;
   removeProject: (projectId: string) => Promise<void>;
+  updateProject: (projectId: string, name?: string, description?: string) => Promise<SavedProject>;
   // Session / preferences / activity parsers
-  listSessions: (projectPath: string) => Promise<SessionInfo[]>;
+  listSessions: (projectPath: string, offset: number, limit: number) => Promise<SessionPage>;
+  readSessionMessages: (projectPath: string, sessionId: string) => Promise<SessionMessage[]>;
   readPreferences: (projectPath: string) => Promise<PreferencesData>;
   writePreferences: (projectPath: string, data: PreferencesData) => Promise<void>;
   listActivity: (projectPath: string) => Promise<ActivityEntry[]>;
@@ -150,7 +155,7 @@ function createTauriClient(): GsdClient {
 
     parseProjectMilestones: async (projectPath: string) => {
       const invoke = await getInvoke();
-      return invoke<MilestoneInfo[]>("parse_project_milestones", { projectPath });
+      return invoke<MilestoneInfo[]>("parse_project_milestones_cmd", { projectPath });
     },
 
     getSavedProjects: async () => {
@@ -168,9 +173,23 @@ function createTauriClient(): GsdClient {
       return invoke("remove_project", { projectId });
     },
 
-    listSessions: async (projectPath: string) => {
+    updateProject: async (projectId: string, name?: string, description?: string) => {
       const invoke = await getInvoke();
-      return invoke<SessionInfo[]>("list_project_sessions_cmd", { projectPath });
+      return invoke<SavedProject>("update_project", {
+        projectId,
+        name: name ?? null,
+        description: description ?? null,
+      });
+    },
+
+    listSessions: async (projectPath: string, offset: number, limit: number) => {
+      const invoke = await getInvoke();
+      return invoke<SessionPage>("list_project_sessions_cmd", { projectPath, offset, limit });
+    },
+
+    readSessionMessages: async (projectPath: string, sessionId: string) => {
+      const invoke = await getInvoke();
+      return invoke<SessionMessage[]>("read_session_messages_cmd", { projectPath, sessionId });
     },
 
     readPreferences: async (projectPath: string) => {

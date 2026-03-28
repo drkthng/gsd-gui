@@ -62,6 +62,11 @@ pub fn gsd_home() -> Result<PathBuf, String> {
 pub fn encode_project_path(path: &str) -> String {
     let mut s = path.to_string();
 
+    // Strip Windows extended-length UNC prefix \\?\ that canonicalize adds
+    if s.starts_with(r"\\?\") {
+        s = s[4..].to_string();
+    }
+
     // Strip leading `/` or `\` (only the first character)
     if s.starts_with('/') || s.starts_with('\\') {
         s = s[1..].to_string();
@@ -77,13 +82,20 @@ pub fn encode_project_path(path: &str) -> String {
 ///
 /// Returns an empty Vec if the sessions directory doesn't exist.
 /// Skips individual session files that are malformed or unreadable.
-pub fn list_sessions(project_path: &str) -> Result<Vec<SessionInfo>, String> {
+///
+/// `offset` and `limit` work on sessions sorted newest-first.
+/// Pass `offset=0, limit=10` for the first page; `limit=0` means all.
+pub fn list_sessions(
+    project_path: &str,
+    offset: usize,
+    limit: usize,
+) -> Result<(Vec<SessionInfo>, usize), String> {
     let home = gsd_home()?;
     let encoded = encode_project_path(project_path);
     let sessions_dir = home.join("sessions").join(&encoded);
 
     if !sessions_dir.exists() {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), 0));
     }
 
     let mut entries: Vec<PathBuf> = std::fs::read_dir(&sessions_dir)
@@ -93,18 +105,27 @@ pub fn list_sessions(project_path: &str) -> Result<Vec<SessionInfo>, String> {
         .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("jsonl"))
         .collect();
 
-    // Sort by filename (which starts with timestamp) for consistent ordering
-    entries.sort();
+    // Sort newest-first (filenames are ISO timestamps, reverse alphabetic = newest first)
+    entries.sort_unstable_by(|a, b| b.cmp(a));
+
+    let total = entries.len();
+
+    // Apply pagination
+    let page: Vec<PathBuf> = if limit == 0 {
+        entries.into_iter().skip(offset).collect()
+    } else {
+        entries.into_iter().skip(offset).take(limit).collect()
+    };
 
     let mut sessions = Vec::new();
-    for path in entries {
+    for path in page {
         match parse_session_file(&path) {
             Ok(session) => sessions.push(session),
-            Err(_) => continue, // Skip malformed session files
+            Err(_) => continue,
         }
     }
 
-    Ok(sessions)
+    Ok((sessions, total))
 }
 
 // ---------------------------------------------------------------------------
@@ -209,6 +230,168 @@ fn parse_session_file(path: &Path) -> Result<SessionInfo, String> {
     })
 }
 
+// ---------------------------------------------------------------------------
+// Session message reading
+// ---------------------------------------------------------------------------
+
+/// A single message entry returned from a session file.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMessage {
+    pub id: String,
+    pub role: String,       // "user" | "assistant" | "tool_result"
+    pub content: String,    // rendered text (thinking blocks stripped)
+    pub timestamp: String,
+    pub is_error: bool,
+}
+
+/// Read all messages from a single session file, identified by session_id.
+///
+/// Scans the sessions directory, finds the matching .jsonl file, and parses
+/// user / assistant / toolResult messages into a flat list.
+/// Tool calls and thinking blocks are omitted — only human-readable content.
+pub fn read_session_messages(
+    project_path: &str,
+    session_id: &str,
+) -> Result<Vec<SessionMessage>, String> {
+    let home = gsd_home()?;
+    let encoded = encode_project_path(project_path);
+    let sessions_dir = home.join("sessions").join(&encoded);
+
+    if !sessions_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    // Find the .jsonl file whose first line contains the session id
+    let entries: Vec<PathBuf> = std::fs::read_dir(&sessions_dir)
+        .map_err(|e| format!("Failed to read {}: {}", sessions_dir.display(), e))?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("jsonl"))
+        .collect();
+
+    let mut target: Option<PathBuf> = None;
+    for path in &entries {
+        // Fast check: see if filename contains the id
+        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+        if stem.contains(session_id) {
+            target = Some(path.clone());
+            break;
+        }
+        // Slower fallback: read first line and check id field
+        if let Ok(content) = std::fs::read_to_string(path) {
+            if let Some(first_line) = content.lines().next() {
+                if let Ok(header) = serde_json::from_str::<serde_json::Value>(first_line) {
+                    if header.get("id").and_then(|v| v.as_str()) == Some(session_id) {
+                        target = Some(path.clone());
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    let path = target.ok_or_else(|| format!("Session not found: {session_id}"))?;
+    parse_session_messages(&path)
+}
+
+fn parse_session_messages(path: &Path) -> Result<Vec<SessionMessage>, String> {
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+
+    let mut messages = Vec::new();
+
+    for line_str in content.lines() {
+        let line_str = line_str.trim();
+        if line_str.is_empty() {
+            continue;
+        }
+        let Ok(val) = serde_json::from_str::<serde_json::Value>(line_str) else {
+            continue;
+        };
+        if val.get("type").and_then(|v| v.as_str()) != Some("message") {
+            continue;
+        }
+
+        let msg = match val.get("message") {
+            Some(m) => m,
+            None => continue,
+        };
+
+        let role = msg.get("role").and_then(|v| v.as_str()).unwrap_or("");
+        let id = val.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let timestamp = val
+            .get("timestamp")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let is_error = msg
+            .get("isError")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let text = extract_message_text(msg);
+        if text.is_empty() {
+            continue; // skip tool calls with no text
+        }
+
+        messages.push(SessionMessage {
+            id,
+            role: role.to_string(),
+            content: text,
+            timestamp,
+            is_error,
+        });
+    }
+
+    Ok(messages)
+}
+
+/// Extract readable text from a message, handling all content formats.
+/// Strips thinking blocks and tool calls — returns only text visible to users.
+fn extract_message_text(message: &serde_json::Value) -> String {
+    let content = message.get("content");
+    match content {
+        Some(serde_json::Value::String(s)) => s.clone(),
+        Some(serde_json::Value::Array(arr)) => {
+            let mut parts: Vec<String> = Vec::new();
+            for block in arr {
+                let block_type = block.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                match block_type {
+                    "text" => {
+                        if let Some(t) = block.get("text").and_then(|v| v.as_str()) {
+                            if !t.is_empty() {
+                                parts.push(t.to_string());
+                            }
+                        }
+                    }
+                    // toolResult: show tool name + content
+                    "toolResult" | "tool_result" => {
+                        if let Some(t) = block
+                            .get("content")
+                            .and_then(|v| v.as_array())
+                            .and_then(|a| {
+                                a.iter().find_map(|b| b.get("text").and_then(|t| t.as_str()))
+                            })
+                            .or_else(|| block.get("content").and_then(|v| v.as_str()))
+                        {
+                            let tool_name = block
+                                .get("toolName")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("tool");
+                            parts.push(format!("[{tool_name}]\n{t}"));
+                        }
+                    }
+                    // toolCall, thinking — skip
+                    _ => {}
+                }
+            }
+            parts.join("\n\n")
+        }
+        _ => String::new(),
+    }
+}
+
 /// Extract preview text from a user message.
 ///
 /// Handles both formats:
@@ -283,6 +466,11 @@ mod tests {
     fn test_encode_windows_path() {
         assert_eq!(
             encode_project_path("D:\\AiProjects\\gsd-gui"),
+            "--D--AiProjects-gsd-gui--"
+        );
+        // Windows canonicalize adds \\?\ prefix — must be stripped
+        assert_eq!(
+            encode_project_path(r"\\?\D:\AiProjects\gsd-gui"),
             "--D--AiProjects-gsd-gui--"
         );
     }
