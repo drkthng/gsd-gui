@@ -177,7 +177,7 @@ function SessionRow({ session }: { session: SessionInfo }) {
 
   return (
     <>
-      <div className={`rounded-md border transition-colors ${session.isActive ? "border-primary/40 bg-primary/5" : "border-border"}`}>
+      <div className={`rounded-md border transition-colors group ${session.isActive ? "border-primary/40 bg-primary/5" : "border-border"}`}>
         {/* Row header */}
         <div
           className="flex w-full items-start gap-3 p-3 cursor-pointer hover:bg-muted/40 rounded-md transition-colors"
@@ -318,7 +318,7 @@ function MessageThread({
 // ---------------------------------------------------------------------------
 
 function MessageBubble({ message }: { message: SessionMessage }) {
-  const [thinkingOpen, setThinkingOpen] = useState(false);
+  const [thinkingOpen, setThinkingOpen] = useState(false); // collapsed by default
   const isUser = message.role === "user";
   const isTool = message.role === "toolResult" || message.role === "tool_result";
 

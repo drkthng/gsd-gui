@@ -3,6 +3,100 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Child;
 use tokio::sync::mpsc;
 
+// ---------------------------------------------------------------------------
+// Windows Job Object — ensures the child process is killed when the Tauri
+// parent exits for ANY reason (crash, force-kill, Task Manager).
+//
+// kill_on_drop(true) only works on clean Rust drop. A Job Object with
+// JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE is enforced by the OS kernel — the child
+// is killed as soon as the last handle to the job is closed, even mid-crash.
+// ---------------------------------------------------------------------------
+
+#[cfg(windows)]
+mod job_object {
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW,
+        JobObjectExtendedLimitInformation, QueryInformationJobObject,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_ALL_ACCESS};
+
+    /// A wrapper that holds a Windows Job Object handle.
+    /// When this struct is dropped, the handle is closed, which triggers
+    /// JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE and kills all assigned processes.
+    pub struct JobObject(HANDLE);
+
+    unsafe impl Send for JobObject {}
+    unsafe impl Sync for JobObject {}
+
+    impl Drop for JobObject {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                unsafe { CloseHandle(self.0) };
+            }
+        }
+    }
+
+    /// Create a Job Object and assign the given child process PID to it.
+    /// The job has JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE set so all assigned
+    /// processes are killed when the job handle is closed (parent exits).
+    pub fn assign_child_to_job(pid: u32) -> Option<JobObject> {
+        unsafe {
+            // Create an unnamed job object
+            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if job.is_null() {
+                return None;
+            }
+
+            // Query current limits then add KILL_ON_JOB_CLOSE
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            let ok = QueryInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                &mut info as *mut _ as *mut _,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                std::ptr::null_mut(),
+            );
+            if ok == 0 {
+                CloseHandle(job);
+                return None;
+            }
+
+            info.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+            let ok = SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                &info as *const _ as *const _,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            if ok == 0 {
+                CloseHandle(job);
+                return None;
+            }
+
+            // Open the child process handle
+            let proc = OpenProcess(PROCESS_ALL_ACCESS, 0, pid);
+            if proc.is_null() {
+                CloseHandle(job);
+                return None;
+            }
+
+            let ok = AssignProcessToJobObject(job, proc);
+            CloseHandle(proc);
+
+            if ok == 0 {
+                CloseHandle(job);
+                return None;
+            }
+
+            Some(JobObject(job))
+        }
+    }
+}
+
 use crate::gsd_resolve::build_gsd_command;
 use crate::gsd_rpc::{serialize_command, JsonlFramer, RpcCommand};
 
@@ -18,6 +112,9 @@ pub struct GsdProcess {
     child: Option<Child>,
     stdin_tx: Option<mpsc::Sender<String>>,
     shutdown_tx: Option<mpsc::Sender<()>>,
+    /// Windows only: Job Object that kills the child if the parent exits for any reason.
+    #[cfg(windows)]
+    _job: Option<job_object::JobObject>,
 }
 
 /// Payload emitted as a `gsd-event` Tauri event for each JSONL line from stdout.
@@ -106,6 +203,10 @@ impl GsdProcess {
             .take()
             .ok_or_else(|| "Failed to capture child stdin".to_string())?;
 
+        // Capture PID now (before child is moved into the struct) for the Windows Job Object
+        #[cfg(windows)]
+        let child_pid = child.id();
+
         // Shutdown signal channel
         let (shutdown_tx, _shutdown_rx) = mpsc::channel::<()>(1);
 
@@ -168,6 +269,8 @@ impl GsdProcess {
             child: Some(child),
             stdin_tx: Some(stdin_tx),
             shutdown_tx: Some(shutdown_tx),
+            #[cfg(windows)]
+            _job: child_pid.and_then(job_object::assign_child_to_job),
         })
     }
 
@@ -197,6 +300,8 @@ impl GsdProcess {
             child: Some(child),
             stdin_tx: Some(stdin_tx),
             shutdown_tx: Some(shutdown_tx),
+            #[cfg(windows)]
+            _job: None, // test helper — no job object needed
         }
     }
 
