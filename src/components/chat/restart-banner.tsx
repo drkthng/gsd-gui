@@ -16,18 +16,11 @@ export function RestartBanner({ version }: RestartBannerProps) {
 
   const handleRestart = async () => {
     try {
-      // Prefer Tauri's invoke-based restart command when available
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("restart_app");
     } catch {
-      // Fallback: use the Tauri process API directly
-      try {
-        const { relaunch } = await import("@tauri-apps/plugin-process");
-        await relaunch();
-      } catch {
-        // Final fallback: nothing we can do — just dismiss
-        dismissRestartBanner();
-      }
+      // If invoke fails, just dismiss the banner — nothing else we can do
+      dismissRestartBanner();
     }
   };
 

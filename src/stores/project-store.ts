@@ -16,6 +16,7 @@ interface ProjectState {
   loadProjects: () => Promise<void>;
   addProject: (projectPath: string, description?: string) => Promise<SavedProject>;
   removeProject: (projectId: string) => Promise<void>;
+  updateProject: (projectId: string, name: string, description: string) => Promise<void>;
   selectProject: (project: SavedProject) => void;
   clearError: () => void;
 }
@@ -80,6 +81,22 @@ export const useProjectStore = create<ProjectState>()((set, get) => ({
 
   selectProject: (project: SavedProject) => {
     set({ activeProject: project });
+  },
+
+  updateProject: async (projectId: string, name: string, description: string) => {
+    set({ error: null });
+    try {
+      const updated = await client.updateProject(projectId, name, description);
+      const projects = await client.getSavedProjects();
+      const { activeProject } = get();
+      set({
+        projects,
+        activeProject: activeProject?.id === projectId ? updated : activeProject,
+      });
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : String(err) });
+      throw err;
+    }
   },
 
   clearError: () => set({ error: null }),
