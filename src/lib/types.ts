@@ -213,6 +213,7 @@ export interface SessionMessage {
   id: string;
   role: "user" | "assistant" | "toolResult" | string;
   content: string;
+  thinking?: string | null;
   timestamp: string;
   isError: boolean;
 }

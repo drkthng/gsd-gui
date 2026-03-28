@@ -1,11 +1,12 @@
 import { useEffect } from "react";
-import { MessageSquare, FolderOpen, FolderKanban } from "lucide-react";
+import { MessageSquare, FolderOpen, FolderKanban, GitBranch } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ChatView, ConnectionStatusBanner, RestartBanner } from "@/components/chat";
 import { MessageInput } from "@/components/chat";
 import { AutoModeControls } from "@/components/controls";
 import { useGsdStore } from "@/stores/gsd-store";
 import { useProjectStore } from "@/stores/project-store";
+import { useGitBranch } from "@/hooks/use-git-branch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -18,8 +19,10 @@ export function ChatPage() {
   const versionInfo = useGsdStore((s) => s.versionInfo);
   const navigate = useNavigate();
 
-  // Auto-connect when visiting the chat page with no active session.
-  // Uses the active project's path, or a fallback for demo mode.
+  const displayPath = activeProjectPath ?? activeProject?.path ?? null;
+  const displayName = activeProject?.name ?? (displayPath ? displayPath.split(/[\\/]/).pop() : null);
+  const branch = useGitBranch(displayPath);
+
   useEffect(() => {
     if (sessionState === "idle") {
       const projectPath = activeProject?.path ?? "demo";
@@ -27,19 +30,14 @@ export function ChatPage() {
     }
   }, [sessionState, connect, activeProject]);
 
-  // The path shown in the header: prefer the live session path,
-  // fall back to the selected project path.
-  const displayPath = activeProjectPath ?? activeProject?.path ?? null;
-  const displayName = activeProject?.name ?? (displayPath ? displayPath.split(/[\\/]/).pop() : null);
-
   const sessionBadge = (() => {
     switch (sessionState) {
-      case "connected": return { label: "Connected", className: "bg-green-600 hover:bg-green-600 text-white" };
-      case "streaming": return { label: "Running", className: "bg-blue-600 hover:bg-blue-600 text-white" };
-      case "connecting": return { label: "Connecting…", className: "bg-yellow-600 hover:bg-yellow-600 text-white" };
-      case "disconnected": return { label: "Disconnected", className: "" };
-      case "error": return { label: "Error", className: "bg-destructive text-destructive-foreground" };
-      default: return null;
+      case "connected":   return { label: "Connected",   cls: "bg-green-600 hover:bg-green-600 text-white" };
+      case "streaming":   return { label: "Running",     cls: "bg-blue-600 hover:bg-blue-600 text-white" };
+      case "connecting":  return { label: "Connecting…", cls: "bg-yellow-600 hover:bg-yellow-600 text-white" };
+      case "disconnected":return { label: "Disconnected",cls: "" };
+      case "error":       return { label: "Error",       cls: "bg-destructive text-destructive-foreground" };
+      default:            return null;
     }
   })();
 
@@ -50,10 +48,11 @@ export function ChatPage() {
         <div className="flex items-center gap-3 min-w-0">
           <MessageSquare className="h-5 w-5 shrink-0 text-primary" data-testid="page-icon" />
           <div className="min-w-0">
+            {/* Title row */}
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-lg font-semibold tracking-tight leading-tight">Chat</h1>
               {sessionBadge && (
-                <Badge className={`h-5 px-1.5 text-[10px] ${sessionBadge.className}`}>
+                <Badge className={`h-5 px-1.5 text-[10px] ${sessionBadge.cls}`}>
                   {sessionState === "streaming" && (
                     <span className="relative flex h-1.5 w-1.5 mr-1">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
@@ -64,18 +63,26 @@ export function ChatPage() {
                 </Badge>
               )}
             </div>
+
+            {/* Project + branch row */}
             {displayPath ? (
-              <div className="flex items-center gap-1 mt-0.5">
-                <FolderOpen className="h-3 w-3 shrink-0 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground font-mono truncate max-w-[400px]" title={displayPath}>
-                  {displayName && (
-                    <span className="font-medium text-foreground">{displayName}</span>
-                  )}
-                  {displayName && displayPath !== displayName && (
-                    <span className="text-muted-foreground"> · {displayPath}</span>
-                  )}
-                  {!displayName && displayPath}
-                </span>
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                <div className="flex items-center gap-1">
+                  <FolderOpen className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <span className="text-xs font-mono truncate max-w-[320px] text-muted-foreground" title={displayPath}>
+                    {displayName && <span className="font-medium text-foreground">{displayName}</span>}
+                    {displayName && displayPath !== displayName && (
+                      <span> · {displayPath}</span>
+                    )}
+                    {!displayName && displayPath}
+                  </span>
+                </div>
+                {branch && (
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <GitBranch className="h-3 w-3 shrink-0" />
+                    <span className="font-mono">{branch}</span>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center gap-1 mt-0.5">

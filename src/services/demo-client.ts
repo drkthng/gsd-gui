@@ -530,6 +530,8 @@ export function createDemoClient(): GsdClient {
       ];
     },
 
+    getGitBranch: async (_projectPath: string): Promise<string | null> => "develop",
+
     readPreferences: async (_projectPath: string): Promise<PreferencesData> =>
       structuredClone(demoPreferences),
 
