@@ -344,7 +344,7 @@ function MessageBubble({ message }: { message: SessionMessage }) {
         <div className="mx-3 mb-2 rounded border border-dashed border-muted-foreground/30 overflow-hidden">
           <button
             className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/50 transition-colors"
-            onClick={() => setThinkingOpen((v) => !v)}
+            onClick={(e) => { e.stopPropagation(); setThinkingOpen((v) => !v); }}
           >
             <Brain className="h-3 w-3 shrink-0 text-purple-500" />
             <span className="font-medium text-purple-600 dark:text-purple-400">Thinking</span>
@@ -353,7 +353,10 @@ function MessageBubble({ message }: { message: SessionMessage }) {
               : <ChevronRight className="h-3 w-3 ml-auto" />}
           </button>
           {thinkingOpen && (
-            <div className="px-3 pb-2.5 pt-1 text-xs text-muted-foreground font-mono whitespace-pre-wrap break-words border-t border-dashed border-muted-foreground/20 bg-muted/30">
+            <div
+              className="px-3 pb-2.5 pt-1 text-xs text-muted-foreground font-mono whitespace-pre-wrap break-words border-t border-dashed border-muted-foreground/20 bg-muted/30"
+              onClick={(e) => e.stopPropagation()}
+            >
               {message.thinking}
             </div>
           )}
