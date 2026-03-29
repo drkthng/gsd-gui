@@ -1,8 +1,9 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { renderWithProviders, screen } from "@/test/test-utils";
+import { renderWithProviders, screen, waitFor } from "@/test/test-utils";
 import { StatusBar } from "./status-bar";
 import { useGsdStore } from "@/stores/gsd-store";
 import { useProjectStore } from "@/stores/project-store";
+import type { PreferencesData, ActivityEntry } from "@/lib/types";
 
 // Mock gsd-client to prevent Tauri import errors
 const { mockClient } = vi.hoisted(() => {
@@ -18,6 +19,11 @@ const { mockClient } = vi.hoisted(() => {
     onProcessExit: vi.fn().mockResolvedValue(vi.fn()),
     onProcessError: vi.fn().mockResolvedValue(vi.fn()),
     onFileChanged: vi.fn().mockResolvedValue(vi.fn()),
+    // Stubs for useStatusBarData queries
+    readPreferences: vi.fn<[string], Promise<PreferencesData>>().mockResolvedValue(
+      {} as PreferencesData,
+    ),
+    listActivity: vi.fn<[string], Promise<ActivityEntry[]>>().mockResolvedValue([]),
   };
   return { mockClient };
 });
@@ -56,7 +62,9 @@ describe("StatusBar", () => {
 
   it("shows dash for milestone when no project active", () => {
     renderWithProviders(<StatusBar />);
-    expect(screen.getByText("—")).toBeInTheDocument();
+    // There are now multiple "—" elements: milestone badge, model name, breadcrumb
+    const dashes = screen.getAllByText("—");
+    expect(dashes.length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows zero cost when no data", () => {
@@ -82,5 +90,61 @@ describe("StatusBar", () => {
     useGsdStore.setState({ sessionState: "error" });
     renderWithProviders(<StatusBar />);
     expect(screen.getByText("Error")).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // New tests: model name and breadcrumb
+  // ---------------------------------------------------------------------------
+
+  it("shows dash for model name and breadcrumb when no active project", () => {
+    renderWithProviders(<StatusBar />);
+    // Both model name and breadcrumb slots render "—" when no project is active
+    const dashes = screen.getAllByText("—");
+    // At minimum the milestone badge plus model name and breadcrumb dashes
+    expect(dashes.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByLabelText("model name")).toHaveTextContent("—");
+    expect(screen.getByLabelText("task breadcrumb")).toHaveTextContent("—");
+  });
+
+  it("renders model name from preferences once loaded", async () => {
+    mockClient.readPreferences.mockResolvedValue({
+      models: { execution: "claude-sonnet-4-5" },
+    } as unknown as PreferencesData);
+    mockClient.listActivity.mockResolvedValue([]);
+
+    useProjectStore.setState({
+      activeProject: { id: "p1", name: "Project", path: "/p1", description: null, addedAt: "0" },
+    });
+
+    renderWithProviders(<StatusBar />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("model name")).toHaveTextContent("claude-sonnet-4-5");
+    });
+  });
+
+  it("renders task breadcrumb from activity once loaded", async () => {
+    mockClient.readPreferences.mockResolvedValue({} as PreferencesData);
+    mockClient.listActivity.mockResolvedValue([
+      {
+        id: "1",
+        action: "execute-task",
+        milestoneId: "M013",
+        sliceId: "S02",
+        taskId: "T01",
+        timestamp: "2024-06-01T12:00:00Z",
+        messageCount: 10,
+      },
+    ] satisfies ActivityEntry[]);
+
+    useProjectStore.setState({
+      activeProject: { id: "p1", name: "Project", path: "/p1", description: null, addedAt: "0" },
+    });
+
+    renderWithProviders(<StatusBar />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("task breadcrumb")).toHaveTextContent("M013/S02/T01");
+    });
   });
 });

@@ -18,7 +18,9 @@ const { mockClient } = vi.hoisted(() => {
     addProject: vi.fn(),
     removeProject: vi.fn(),
     startSession: vi.fn(), stopSession: vi.fn(), sendCommand: vi.fn(),
-    queryState: vi.fn(), listProjects: vi.fn(), startFileWatcher: vi.fn(),
+    queryState: vi.fn().mockResolvedValue({ currentMilestone: 'M003', activeTasks: 2, totalCost: 10.40 }),
+    listActivity: vi.fn().mockResolvedValue([]),
+    listProjects: vi.fn(), startFileWatcher: vi.fn(),
     stopFileWatcher: vi.fn(),
     parseProjectMilestones: vi.fn().mockResolvedValue([]),
     onGsdEvent: vi.fn().mockResolvedValue(vi.fn()),
@@ -273,5 +275,21 @@ describe("ProjectGallery", () => {
     await waitFor(() => {
       expect(useProjectStore.getState().activeProject?.id).toBe("p2");
     });
+  });
+
+  it("renders milestone badge in project cards when live data resolves", async () => {
+    const projects = [makeProject("p1", "gsd-gui")];
+    mockClient.getSavedProjects.mockResolvedValue(projects);
+    mockClient.queryState.mockResolvedValue({ currentMilestone: "M003", activeTasks: 2, totalCost: 10.40 });
+    mockClient.listActivity.mockResolvedValue([]);
+    useProjectStore.setState({ projects });
+
+    renderWithProviders(<ProjectGallery />, { initialRoute: "/projects" });
+
+    // Wait for the milestone badge to appear (live data resolves asynchronously)
+    await waitFor(() => {
+      expect(screen.getByTestId("milestone-badge")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("milestone-badge")).toHaveTextContent("M003");
   });
 });

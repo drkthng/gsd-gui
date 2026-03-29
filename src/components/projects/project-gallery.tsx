@@ -10,10 +10,59 @@ import { NewProjectWizard } from "./new-project-wizard";
 import { useProjectStore } from "@/stores/project-store";
 import { useGsdStore } from "@/stores/gsd-store";
 import { useImportDetection } from "@/hooks/use-import-detection";
+import { useProjectLiveData } from "@/hooks/use-project-live-data";
 import { createGsdClient } from "@/services/gsd-client";
+import type { SavedProject } from "@/lib/types";
 import type { WizardFormData } from "./new-project-wizard";
 
 const client = createGsdClient();
+
+/**
+ * Inner component that owns the `useProjectLiveData` hook for a single project.
+ * Hooks cannot be called inside a `.map()` loop, so we extract one component
+ * per card and let React manage hook identity through the key prop.
+ */
+interface ProjectCardWithLiveDataProps {
+  project: SavedProject;
+  isActiveSession: boolean;
+  isConnecting: boolean;
+  onCardClick: () => void;
+  onRemove: () => void;
+  onEdit: (name: string, description: string) => Promise<void>;
+  onOpenChat: () => void;
+  onViewSessions: () => void;
+}
+
+function ProjectCardWithLiveData({
+  project,
+  isActiveSession,
+  isConnecting,
+  onCardClick,
+  onRemove,
+  onEdit,
+  onOpenChat,
+  onViewSessions,
+}: ProjectCardWithLiveDataProps) {
+  const { currentMilestone, totalCost, lastActivity, isLoading } =
+    useProjectLiveData(project.path);
+
+  return (
+    <ProjectCard
+      project={project}
+      isActiveSession={isActiveSession}
+      isConnecting={isConnecting}
+      onClick={onCardClick}
+      onRemove={onRemove}
+      onEdit={onEdit}
+      onOpenChat={onOpenChat}
+      onViewSessions={onViewSessions}
+      currentMilestone={currentMilestone}
+      totalCost={totalCost}
+      lastActivity={lastActivity}
+      isLiveDataLoading={isLoading}
+    />
+  );
+}
 
 /** Safely open a native folder picker. Falls back to prompt() in browser mode. */
 async function openDirectoryPicker(): Promise<string | null> {
@@ -210,12 +259,12 @@ export function ProjectGallery() {
             activeProjectPath === project.path && sessionState === "connecting";
 
           return (
-            <ProjectCard
+            <ProjectCardWithLiveData
               key={project.id}
               project={project}
               isActiveSession={isActiveSession && sessionState !== "connecting"}
               isConnecting={isConnecting}
-              onClick={() => {
+              onCardClick={() => {
                 selectProject(project);
                 navigate("/milestones");
               }}

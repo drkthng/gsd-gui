@@ -17,7 +17,7 @@ const { mockClient } = vi.hoisted(() => {
     getSavedProjects: vi.fn().mockResolvedValue([]),
     addProject: vi.fn(),
     removeProject: vi.fn(),
-    listSessions: vi.fn().mockResolvedValue([]),
+    listSessions: vi.fn().mockResolvedValue({ sessions: [], total: 0 }),
     readPreferences: vi.fn().mockResolvedValue({}),
     writePreferences: vi.fn().mockResolvedValue(undefined),
     listActivity: vi.fn().mockResolvedValue([]),
@@ -90,7 +90,7 @@ describe("useSessions", () => {
 
   it("fetches sessions when active project is set", async () => {
     const session = makeSession();
-    mockClient.listSessions.mockResolvedValueOnce([session]);
+    mockClient.listSessions.mockResolvedValueOnce({ sessions: [session], total: 1 });
 
     const project = makeProject();
     useProjectStore.setState({ activeProject: project });
@@ -99,15 +99,15 @@ describe("useSessions", () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(mockClient.listSessions).toHaveBeenCalledWith(project.path);
+    expect(mockClient.listSessions).toHaveBeenCalledWith(project.path, 0, 10);
     expect(result.current.sessions).toEqual([session]);
     expect(result.current.error).toBeNull();
   });
 
   it("sets isLoading true while fetch is in progress", async () => {
-    let resolve: (v: SessionInfo[]) => void;
+    let resolve: (v: { sessions: SessionInfo[], total: number }) => void;
     mockClient.listSessions.mockReturnValueOnce(
-      new Promise<SessionInfo[]>((r) => {
+      new Promise((r) => {
         resolve = r;
       }),
     );
@@ -121,7 +121,7 @@ describe("useSessions", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(true));
 
     await act(async () => {
-      resolve!([]);
+      resolve!({ sessions: [], total: 0 });
     });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -159,8 +159,8 @@ describe("useSessions", () => {
     const s1 = makeSession({ id: "session-001", name: "First" });
     const s2 = makeSession({ id: "session-002", name: "Second" });
     mockClient.listSessions
-      .mockResolvedValueOnce([s1])
-      .mockResolvedValueOnce([s2]);
+      .mockResolvedValueOnce({ sessions: [s1], total: 2 })
+      .mockResolvedValueOnce({ sessions: [s2], total: 2 });
 
     const { result } = renderHook(() => useSessions());
 
@@ -192,7 +192,7 @@ describe("useSessions", () => {
   it("clears sessions when active project becomes null", async () => {
     const project = makeProject();
     const session = makeSession();
-    mockClient.listSessions.mockResolvedValueOnce([session]);
+    mockClient.listSessions.mockResolvedValueOnce({ sessions: [session], total: 1 });
 
     useProjectStore.setState({ activeProject: project });
     const { result } = renderHook(() => useSessions());

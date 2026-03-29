@@ -21,7 +21,7 @@ vi.mock("@/services/gsd-client", () => ({
   createGsdClient: () => ({
     startSession: vi.fn(), stopSession: vi.fn(), sendCommand: vi.fn(),
     queryState: vi.fn(), listProjects: vi.fn(), startFileWatcher: vi.fn(),
-    stopFileWatcher: vi.fn(),
+    stopFileWatcher: vi.fn(), getGitBranch: vi.fn().mockResolvedValue(null),
     getSavedProjects: vi.fn().mockResolvedValue([]),
     addProject: vi.fn(), removeProject: vi.fn(),
     onGsdEvent: vi.fn().mockResolvedValue(vi.fn()),

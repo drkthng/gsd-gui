@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { useGsdStore } from "@/stores/gsd-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useGsdState } from "@/hooks/use-gsd-state";
+import { useStatusBarData } from "@/hooks/use-status-bar-data";
 import { NotificationPopover } from "./notification-popover";
 
 /**
@@ -13,6 +14,7 @@ export function StatusBar() {
   const sessionState = useGsdStore((s) => s.sessionState);
   const activeProject = useProjectStore((s) => s.activeProject);
   const { data: snapshot } = useGsdState(activeProject?.path ?? null);
+  const { modelName, breadcrumb } = useStatusBarData(activeProject?.path ?? null);
 
   const milestone = snapshot?.currentMilestone ?? "—";
   const cost = snapshot?.totalCost ?? 0;
@@ -35,6 +37,12 @@ export function StatusBar() {
         <Badge variant="outline" className="h-5 rounded-sm text-[10px]">
           {milestone}
         </Badge>
+        <span aria-label="model name" className="font-mono">
+          {modelName}
+        </span>
+        <span aria-label="task breadcrumb" className="font-mono text-muted-foreground/70">
+          {breadcrumb}
+        </span>
       </div>
       <div className="flex items-center gap-1">
         <span>Cost:</span>
